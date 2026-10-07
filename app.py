@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 from datetime import datetime, date
-from flask import Flask, render_template, request, redirect, url_for, jsonify
 from supabase import create_client, Client
 
 app = Flask(__name__)
