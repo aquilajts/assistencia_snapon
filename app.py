@@ -84,7 +84,6 @@ def novo_servico():
         if not cliente:
             return render_template("novo_servico.html", erro="Informe o cliente/empresa.")
 
-        conn = get_db()
         cur = supabase.table("3_ata_servicos").insert({
             "tipo": tipo,
             "regiao": regiao,
