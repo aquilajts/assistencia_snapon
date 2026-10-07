@@ -8,6 +8,7 @@
         <p class="eyebrow">SERVIÇO #{{ "%05d"|format(servico['id']) }}</p>
         <h1>{{ servico['cliente'] }}</h1>
         <p class="muted">{{ servico['tipo'] }} · {{ servico['regiao'] }}</p>
+        <a class="button ghost" href="{{ url_for('editar_servico', servico_id=servico['id']) }}">Editar cadastro</a>
     </div>
 
     <span class="big-status {{ 'done' if servico['status']=='Concluído' else '' }}">
@@ -33,22 +34,34 @@
 
             <div>
                 <dt>Telefone</dt>
-                <dd>{{ servico['telefone'] or 'Não informado' }}</dd>
+                <dd>
+                    {% if telefone_whatsapp %}
+                    <a href="http://wa.me/{{ telefone_whatsapp }}">{{ servico['telefone'] }}</a>
+                    {% else %}
+                    Não informado
+                    {% endif %}
+                </dd>
             </div>
 
             <div>
                 <dt>Data prevista</dt>
-                <dd>{{ servico['data_prevista'] or 'Não definida' }}</dd>
+                <dd>{{ data_prevista_formatada or 'Não definida' }}</dd>
             </div>
 
             <div>
                 <dt>Endereço</dt>
-                <dd>{{ servico['endereco'] or 'Não informado' }}</dd>
+                <dd>
+                    {% if servico['endereco'] %}
+                    <a href="https://www.google.com/maps/search/?api=1&amp;query={{ servico['endereco']|urlencode }}" target="_blank" rel="noopener noreferrer">{{ servico['endereco'] }}</a>
+                    {% else %}
+                    Não informado
+                    {% endif %}
+                </dd>
             </div>
 
             <div>
                 <dt>Cadastro</dt>
-                <dd>{{ servico['criado_em'] }}</dd>
+                <dd>{{ criado_em_formatado or 'Não informado' }}</dd>
             </div>
 
             {% if servico['data_conclusao'] %}
@@ -86,18 +99,6 @@
             </button>
         </form>
 
-        {% if servico['status'] != 'Concluído' %}
-        <form method="post"
-              action="{{ url_for('alterar_status', servico_id=servico['id']) }}"
-              class="complete-box">
-
-            <input type="hidden" name="status" value="Concluído">
-
-            <button class="button success" type="submit">
-                ✓ Marcar como concluído
-            </button>
-        </form>
-        {% endif %}
     </section>
 
 </div>
