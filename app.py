@@ -1,47 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-import sqlite3
+import os
 from datetime import datetime, date
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "servicos.db"
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+from supabase import create_client, Client
 
 app = Flask(__name__)
 
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS servicos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo TEXT NOT NULL,
-            regiao TEXT NOT NULL,
-            cliente TEXT NOT NULL,
-            endereco TEXT DEFAULT '',
-            data_prevista TEXT,
-            observacoes TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'A confirmar',
-            data_conclusao TEXT,
-            criado_em TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS historico (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            servico_id INTEGER NOT NULL,
-            texto TEXT NOT NULL,
-            criado_em TEXT NOT NULL,
-            FOREIGN KEY(servico_id) REFERENCES servicos(id)
-        )
-    """)
-    conn.commit()
-    conn.close()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 @app.context_processor
@@ -101,6 +69,7 @@ def novo_servico():
         tipo = request.form.get("tipo", "Assistência Técnica")
         regiao = request.form.get("regiao", "Grande Vitória")
         cliente = request.form.get("cliente", "").strip()
+        telefone = request.form.get("telefone", "").strip()
         endereco = request.form.get("endereco", "").strip()
         data_prevista = request.form.get("data_prevista", "")
         observacoes = request.form.get("observacoes", "").strip()
@@ -110,24 +79,27 @@ def novo_servico():
             return render_template("novo_servico.html", erro="Informe o cliente/empresa.")
 
         conn = get_db()
-        cur = conn.execute("""
-            INSERT INTO servicos
-            (tipo, regiao, cliente, endereco, data_prevista, observacoes, status, criado_em)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            tipo, regiao, cliente, endereco, data_prevista, observacoes,
-            status, datetime.now().isoformat(timespec="seconds")
-        ))
+        cur = supabase.table("3_ata_servicos").insert({
+            "tipo": tipo,
+            "regiao": regiao,
+            "cliente": cliente,
+            "telefone": telefone,
+            "endereco": endereco,
+            "data_prevista": data_prevista or None,
+            "observacoes": observacoes,
+            "status": "A confirmar",
+            "criado_em": datetime.now().isoformat(timespec="seconds")
+        }).execute()
+        
+        servico_id = cur.data[0]["id"]
         servico_id = cur.lastrowid
-
+        
         if observacoes:
-            conn.execute(
-                "INSERT INTO historico (servico_id, texto, criado_em) VALUES (?, ?, ?)",
-                (servico_id, "Observação inicial: " + observacoes,
-                 datetime.now().isoformat(timespec="seconds"))
-            )
-        conn.commit()
-        conn.close()
+            supabase.table("3_ata_historico").insert({
+                "servico_id": servico_id,
+                "texto": "Observação inicial: " + observacoes,
+                "criado_em": datetime.now().isoformat(timespec="seconds")
+            }).execute()
         return redirect(url_for("detalhes", servico_id=servico_id))
 
     return render_template("novo_servico.html", erro=None)
@@ -135,15 +107,21 @@ def novo_servico():
 
 @app.route("/servicos/<int:servico_id>")
 def detalhes(servico_id):
-    conn = get_db()
-    servico = conn.execute(
-        "SELECT * FROM servicos WHERE id = ?", (servico_id,)
-    ).fetchone()
-    historico = conn.execute(
-        "SELECT * FROM historico WHERE servico_id = ? ORDER BY criado_em DESC",
-        (servico_id,)
-    ).fetchall()
-    conn.close()
+    servico_response = supabase.table("servicos") \
+        .select("*") \
+        .eq("id", servico_id) \
+        .single() \
+        .execute()
+    
+    servico = servico_response.data
+    
+    historico_response = supabase.table("historico") \
+        .select("*") \
+        .eq("servico_id", servico_id) \
+        .order("criado_em", desc=True) \
+        .execute()
+    
+    historico = historico_response.data
 
     if not servico:
         return "Serviço não encontrado", 404
@@ -158,46 +136,73 @@ def alterar_status(servico_id):
     if status not in permitidos:
         return redirect(url_for("detalhes", servico_id=servico_id))
 
-    conn = get_db()
     data_conclusao = datetime.now().isoformat(timespec="seconds") if status == "Concluído" else None
-    conn.execute(
-        "UPDATE servicos SET status = ?, data_conclusao = ? WHERE id = ?",
-        (status, data_conclusao, servico_id)
-    )
+    
+    supabase.table("servicos").update({
+        "status": status,
+        "data_conclusao": data_conclusao
+    }).eq("id", servico_id).execute()
     if status == "Concluído":
-        conn.execute(
-            "INSERT INTO historico (servico_id, texto, criado_em) VALUES (?, ?, ?)",
-            (servico_id, "Serviço marcado como concluído.",
-             datetime.now().isoformat(timespec="seconds"))
-        )
-    conn.commit()
-    conn.close()
+        supabase.table("historico").insert({
+            "servico_id": servico_id,
+            "texto": "Serviço marcado como concluído.",
+            "criado_em": datetime.now().isoformat(timespec="seconds")
+        }).execute()
     return redirect(url_for("detalhes", servico_id=servico_id))
 
 
 @app.route("/servicos/<int:servico_id>/observacao", methods=["POST"])
 def adicionar_observacao(servico_id):
     texto = request.form.get("texto", "").strip()
-    if texto:
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO historico (servico_id, texto, criado_em) VALUES (?, ?, ?)",
-            (servico_id, texto, datetime.now().isoformat(timespec="seconds"))
-        )
-        conn.commit()
-        conn.close()
+        if texto:
+            supabase.table("historico").insert({
+                "servico_id": servico_id,
+                "texto": texto,
+                "criado_em": datetime.now().isoformat(timespec="seconds")
+            }).execute()
     return redirect(url_for("detalhes", servico_id=servico_id))
 
+@app.route("/servicos/<int:servico_id>/excluir", methods=["POST"])
+def excluir_servico(servico_id):
+    nome_confirmacao = request.form.get("nome_confirmacao", "").strip()
+
+    servico_response = supabase.table("servicos") \
+        .select("cliente") \
+        .eq("id", servico_id) \
+        .single() \
+        .execute()
+
+    servico = servico_response.data
+
+    if not servico:
+        return "Serviço não encontrado", 404
+
+    if nome_confirmacao != servico["cliente"]:
+        return redirect(url_for("detalhes", servico_id=servico_id))
+
+    supabase.table("historico") \
+        .delete() \
+        .eq("servico_id", servico_id) \
+        .execute()
+
+    supabase.table("servicos") \
+        .delete() \
+        .eq("id", servico_id) \
+        .execute()
+
+    return redirect(url_for("servicos"))
 
 @app.route("/api/servicos")
 def api_servicos():
-    conn = get_db()
-    rows = conn.execute("SELECT * FROM servicos ORDER BY data_prevista ASC, id DESC").fetchall()
-    conn.close()
-    return jsonify([dict(row) for row in rows])
-
-
-init_db()
+    response = supabase.table("servicos") \
+        .select("*") \
+        .order("data_prevista", desc=False) \
+        .order("id", desc=True) \
+        .execute()
+    
+    rows = response.data
+    
+    return render_template("servicos.html", servicos=rows)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
