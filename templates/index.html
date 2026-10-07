@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Início — Assistência Técnica{% endblock %}
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">PAINEL DE CAMPO</p>
+        <h1>Minha rotina de serviços</h1>
+        <p class="muted">Cadastre, organize, atenda e registre. Sem burocracia.</p>
+    </div>
+    <a class="button primary big" href="{{ url_for('novo_servico') }}">+ Cadastrar serviço</a>
+</section>
+
+<section class="stats">
+    <div class="stat-card">
+        <span>Hoje</span><strong>{{ total_hoje }}</strong><small>serviços previstos</small>
+    </div>
+    <div class="stat-card">
+        <span>Pendentes</span><strong>{{ pendentes }}</strong><small>não concluídos</small>
+    </div>
+    <div class="stat-card">
+        <span>Esta semana</span><strong>{{ semana_total }}</strong><small>serviços na agenda</small>
+    </div>
+</section>
+
+<div class="grid-2">
+    <section class="panel">
+        <div class="panel-head">
+            <div><p class="eyebrow">ACESSO RÁPIDO</p><h2>O que você precisa fazer?</h2></div>
+        </div>
+        <div class="quick-actions">
+            <a href="{{ url_for('novo_servico') }}" class="quick yellow"><b>+ Cadastrar serviço</b><span>Montagem ou assistência</span></a>
+            <a href="{{ url_for('servicos') }}" class="quick blue"><b>Consultar serviços</b><span>Agenda e filtros</span></a>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">PENDENTES</p><h2>Por região</h2></div></div>
+        <div class="region-list">
+            {% for nome, total in regioes.items() %}
+            <div class="region-row"><span>{{ nome }}</span><strong>{{ total }}</strong></div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<section class="principle">
+    <span>FLUXO PRINCIPAL</span>
+    <b>Cadastrar → Organizar → Atender → Registrar → Concluir</b>
+</section>
+{% endblock %}

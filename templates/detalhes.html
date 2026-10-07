@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Serviço #{{ servico['id'] }}{% endblock %}
+{% block content %}
+<div class="page-head split">
+    <div>
+        <a class="back" href="{{ url_for('servicos') }}">← Voltar para serviços</a>
+        <p class="eyebrow">SERVIÇO #{{ "%05d"|format(servico['id']) }}</p>
+        <h1>{{ servico['cliente'] }}</h1>
+        <p class="muted">{{ servico['tipo'] }} · {{ servico['regiao'] }}</p>
+    </div>
+    <span class="big-status {{ 'done' if servico['status']=='Concluído' else '' }}">{{ servico['status'] }}</span>
+</div>
+
+<div class="detail-grid">
+    <section class="panel">
+        <h2>Informações</h2>
+        <dl>
+            <div><dt>Tipo</dt><dd>{{ servico['tipo'] }}</dd></div>
+            <div><dt>Região</dt><dd>{{ servico['regiao'] }}</dd></div>
+            <div><dt>Data prevista</dt><dd>{{ servico['data_prevista'] or 'Não definida' }}</dd></div>
+            <div><dt>Endereço</dt><dd>{{ servico['endereco'] or 'Não informado' }}</dd></div>
+            <div><dt>Cadastro</dt><dd>{{ servico['criado_em'] }}</dd></div>
+            {% if servico['data_conclusao'] %}<div><dt>Conclusão</dt><dd>{{ servico['data_conclusao'] }}</dd></div>{% endif %}
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Status</h2>
+        <form method="post" action="{{ url_for('alterar_status', servico_id=servico['id']) }}" class="status-form">
+            <select name="status">
+                {% for st in ["A confirmar", "Agendado", "Em andamento", "Concluído", "Problema / Retorno necessário"] %}
+                <option {% if st == servico['status'] %}selected{% endif %}>{{ st }}</option>
+                {% endfor %}
+            </select>
+            <button class="button primary" type="submit">Atualizar status</button>
+        </form>
+
+        {% if servico['status'] != 'Concluído' %}
+        <form method="post" action="{{ url_for('alterar_status', servico_id=servico['id']) }}" class="complete-box">
+            <input type="hidden" name="status" value="Concluído">
+            <button class="button success" type="submit">✓ Marcar como concluído</button>
+        </form>
+        {% endif %}
+    </section>
+</div>
+
+<section class="panel">
+    <h2>Observações do atendimento</h2>
+    {% if servico['observacoes'] %}
+    <div class="initial-note"><b>Observação inicial</b><p>{{ servico['observacoes'] }}</p></div>
+    {% endif %}
+    <div class="timeline">
+        {% for h in historico %}
+        <article><time>{{ h['criado_em']|replace('T',' ') }}</time><p>{{ h['texto'] }}</p></article>
+        {% else %}
+        <p class="muted">Nenhum registro de atendimento ainda.</p>
+        {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('adicionar_observacao', servico_id=servico['id']) }}" class="note-form">
+        <textarea name="texto" rows="3" placeholder="Registrar o que aconteceu no atendimento..."></textarea>
+        <button class="button primary" type="submit">Adicionar observação</button>
+    </form>
+</section>
+
+<section class="panel checklist">
+    <h2>Checklist de conclusão</h2>
+    <label><input type="checkbox"> Foto do serviço</label>
+    <label><input type="checkbox"> Assinatura do cliente</label>
+    <label><input type="checkbox"> EPI utilizado</label>
+    <p class="muted small">Nesta primeira versão, o checklist é local na tela. Upload de fotos e assinatura digital ficam preparados para uma próxima etapa.</p>
+</section>
+{% endblock %}

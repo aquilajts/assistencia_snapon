@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Cadastrar serviço{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div><p class="eyebrow">NOVO ATENDIMENTO</p><h1>Cadastrar serviço</h1><p class="muted">Preencha somente o essencial. O restante pode ser completado depois.</p></div>
+</div>
+
+<form method="post" class="form-card">
+    {% if erro %}<div class="alert">{{ erro }}</div>{% endif %}
+
+    <div class="form-section">
+        <label>Tipo de serviço</label>
+        <div class="choice-grid">
+            <label class="choice yellow-choice">
+                <input type="radio" name="tipo" value="Montagem" checked>
+                <span><b>Montagem</b><small>Amarelo</small></span>
+            </label>
+            <label class="choice blue-choice">
+                <input type="radio" name="tipo" value="Assistência Técnica">
+                <span><b>Assistência Técnica</b><small>Azul</small></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="form-grid">
+        <div>
+            <label for="regiao">Região</label>
+            <select id="regiao" name="regiao">
+                <option>Norte</option><option>Sul</option><option selected>Grande Vitória</option>
+            </select>
+        </div>
+        <div>
+            <label for="data_prevista">Data prevista</label>
+            <input id="data_prevista" type="date" name="data_prevista">
+        </div>
+    </div>
+
+    <div class="form-grid">
+        <div>
+            <label for="cliente">Cliente / empresa *</label>
+            <input id="cliente" name="cliente" placeholder="Ex.: Empresa XYZ" required autofocus>
+        </div>
+        <div>
+            <label for="endereco">Endereço</label>
+            <input id="endereco" name="endereco" placeholder="Rua, número, cidade">
+        </div>
+    </div>
+
+    <div>
+        <label for="observacoes">Observações</label>
+        <textarea id="observacoes" name="observacoes" rows="5" placeholder="Equipamento, problema relatado, peças, ferramentas, contato..."></textarea>
+    </div>
+
+    <div class="form-footer">
+        <a class="button ghost" href="{{ url_for('index') }}">Cancelar</a>
+        <button class="button primary" type="submit">Salvar serviço</button>
+    </div>
+</form>
+{% endblock %}
