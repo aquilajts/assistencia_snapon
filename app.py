@@ -98,7 +98,6 @@ def novo_servico():
         }).execute()
         
         servico_id = cur.data[0]["id"]
-        servico_id = cur.lastrowid
         
         if observacoes:
             supabase.table("3_ata_historico").insert({
@@ -113,7 +112,7 @@ def novo_servico():
 
 @app.route("/servicos/<int:servico_id>")
 def detalhes(servico_id):
-    servico_response = supabase.table("servicos") \
+    servico_response = supabase.table("3_ata_servicos") \
         .select("*") \
         .eq("id", servico_id) \
         .single() \
@@ -121,7 +120,7 @@ def detalhes(servico_id):
     
     servico = servico_response.data
     
-    historico_response = supabase.table("historico") \
+    historico_response = supabase.table("3_ata_historico") \
         .select("*") \
         .eq("servico_id", servico_id) \
         .order("criado_em", desc=True) \
@@ -144,12 +143,12 @@ def alterar_status(servico_id):
 
     data_conclusao = datetime.now().isoformat(timespec="seconds") if status == "Concluído" else None
     
-    supabase.table("servicos").update({
+    supabase.table("3_ata_servicos").update({
         "status": status,
         "data_conclusao": data_conclusao
     }).eq("id", servico_id).execute()
     if status == "Concluído":
-        supabase.table("historico").insert({
+        supabase.table("3_ata_historico").insert({
             "servico_id": servico_id,
             "texto": "Serviço marcado como concluído.",
             "criado_em": datetime.now().isoformat(timespec="seconds")
@@ -160,19 +159,21 @@ def alterar_status(servico_id):
 @app.route("/servicos/<int:servico_id>/observacao", methods=["POST"])
 def adicionar_observacao(servico_id):
     texto = request.form.get("texto", "").strip()
-        if texto:
-            supabase.table("historico").insert({
-                "servico_id": servico_id,
-                "texto": texto,
-                "criado_em": datetime.now().isoformat(timespec="seconds")
-            }).execute()
+
+    if texto:
+        supabase.table("3_ata_historico").insert({
+            "servico_id": servico_id,
+            "texto": texto,
+            "criado_em": datetime.now().isoformat(timespec="seconds")
+        }).execute()
+
     return redirect(url_for("detalhes", servico_id=servico_id))
 
 @app.route("/servicos/<int:servico_id>/excluir", methods=["POST"])
 def excluir_servico(servico_id):
     nome_confirmacao = request.form.get("nome_confirmacao", "").strip()
 
-    servico_response = supabase.table("servicos") \
+    servico_response = supabase.table("3_ata_servicos") \
         .select("cliente") \
         .eq("id", servico_id) \
         .single() \
@@ -186,12 +187,12 @@ def excluir_servico(servico_id):
     if nome_confirmacao != servico["cliente"]:
         return redirect(url_for("detalhes", servico_id=servico_id))
 
-    supabase.table("historico") \
+    supabase.table("3_ata_historico") \
         .delete() \
         .eq("servico_id", servico_id) \
         .execute()
 
-    supabase.table("servicos") \
+    supabase.table("3_ata_servicos") \
         .delete() \
         .eq("id", servico_id) \
         .execute()
@@ -200,15 +201,13 @@ def excluir_servico(servico_id):
 
 @app.route("/api/servicos")
 def api_servicos():
-    response = supabase.table("servicos") \
+    response = supabase.table("3_ata_servicos") \
         .select("*") \
         .order("data_prevista", desc=False) \
         .order("id", desc=True) \
         .execute()
-    
-    rows = response.data
-    
-    return render_template("servicos.html", servicos=rows)
+
+    return jsonify(response.data)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
