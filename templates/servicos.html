@@ -1,40 +1,134 @@
 {% extends "base.html" %}
 {% block title %}Serviços{% endblock %}
 {% block content %}
+
 <div class="page-head split">
-    <div><p class="eyebrow">AGENDA</p><h1>Serviços</h1><p class="muted">Visualize rapidamente o que está pendente e o que já foi concluído.</p></div>
-    <a class="button primary" href="{{ url_for('novo_servico') }}">+ Cadastrar</a>
+    <div>
+        <p class="eyebrow">AGENDA</p>
+        <h1>Serviços</h1>
+        <p class="muted">
+            Visualize rapidamente o que está pendente e o que já foi concluído.
+        </p>
+    </div>
+
+    <a class="button primary" href="{{ url_for('novo_servico') }}">
+        + Cadastrar
+    </a>
 </div>
 
 <section class="filters">
-    <input id="busca" type="search" placeholder="Buscar cliente, endereço ou observação...">
-    <select id="filtroTipo"><option value="">Todos os tipos</option><option>Montagem</option><option>Assistência Técnica</option></select>
-    <select id="filtroRegiao"><option value="">Todas as regiões</option><option>Norte</option><option>Sul</option><option>Grande Vitória</option></select>
-    <select id="filtroStatus"><option value="">Todos os status</option><option>A confirmar</option><option>Agendado</option><option>Em andamento</option><option>Concluído</option><option>Problema / Retorno necessário</option></select>
+
+    <input
+        id="busca"
+        type="search"
+        placeholder="Buscar cliente, endereço ou observação..."
+    >
+
+    <select id="filtroTipo">
+        <option value="">Todos os tipos</option>
+        <option>Montagem</option>
+        <option>Assistência Técnica</option>
+        <option>Garantia</option>
+    </select>
+
+    <select id="filtroRegiao">
+        <option value="">Todas as regiões</option>
+        <option>Norte</option>
+        <option>Sul</option>
+        <option>Grande Vitória</option>
+    </select>
+
+    <select id="filtroStatus">
+        <option value="">Todos os status</option>
+        <option>A confirmar</option>
+        <option>Agendado</option>
+        <option>Em andamento</option>
+        <option>Concluído</option>
+        <option>Problema / Retorno necessário</option>
+    </select>
+
 </section>
 
+
 <div class="service-list" id="serviceList">
+
 {% for s in servicos %}
-<a class="service-card" href="{{ url_for('detalhes', servico_id=s['id']) }}"
-   data-tipo="{{ s['tipo'] }}" data-regiao="{{ s['regiao'] }}" data-status="{{ s['status'] }}"
-   data-search="{{ (s['cliente'] ~ ' ' ~ s['endereco'] ~ ' ' ~ s['observacoes'])|lower }}">
-    <span class="service-color {{ 'green' if s['status']=='Concluído' else ('yellow' if s['tipo']=='Montagem' else 'blue') }}"></span>
+
+<a
+    class="service-card"
+    href="{{ url_for('detalhes', servico_id=s['id']) }}"
+    data-tipo="{{ s['tipo'] }}"
+    data-regiao="{{ s['regiao'] }}"
+    data-status="{{ s['status'] }}"
+    data-search="{{ (s['cliente'] ~ ' ' ~ s['endereco'] ~ ' ' ~ s['observacoes'])|lower }}"
+>
+
+    {# COR DA BARRA LATERAL #}
+    <span class="service-color
+        {% if s['status'] == 'Concluído' %}
+            green
+        {% elif s['tipo'] == 'Montagem' %}
+            yellow
+        {% elif s['tipo'] == 'Assistência Técnica' %}
+            blue
+        {% elif s['tipo'] == 'Garantia' %}
+            white
+        {% endif %}
+    "></span>
+
+
     <div class="service-main">
+
         <div class="service-top">
+
             <strong>{{ s['cliente'] }}</strong>
-            <span class="status status-{{ s['status']|lower|replace(' ', '-')|replace('/', '')|replace('ã','a') }}">{{ s['status'] }}</span>
+
+            <span class="status status-{{ s['status']|lower|replace(' ', '-')|replace('/', '')|replace('ã','a') }}">
+                {{ s['status'] }}
+            </span>
+
         </div>
+
+
         <div class="service-meta">
-            <span>{{ s['tipo'] }}</span><span>{{ s['regiao'] }}</span>
-            <span>{{ s['data_prevista']|replace('-', '/') if s['data_prevista'] else 'Sem data' }}</span>
+
+            <span>{{ s['tipo'] }}</span>
+
+            <span>{{ s['regiao'] }}</span>
+
+            <span>
+                {{ s['data_prevista']|replace('-', '/') if s['data_prevista'] else 'Sem data' }}
+            </span>
+
         </div>
-        {% if s['endereco'] %}<p>{{ s['endereco'] }}</p>{% endif %}
+
+
+        {% if s['endereco'] %}
+        <p>{{ s['endereco'] }}</p>
+        {% endif %}
+
     </div>
+
+
     <span class="arrow">›</span>
+
 </a>
+
 {% else %}
-<div class="empty">Nenhum serviço cadastrado. <a href="{{ url_for('novo_servico') }}">Cadastre o primeiro.</a></div>
-{% endfor %}
+
+<div class="empty">
+    Nenhum serviço cadastrado.
+    <a href="{{ url_for('novo_servico') }}">Cadastre o primeiro.</a>
 </div>
-<div id="noResults" class="empty hidden">Nenhum serviço corresponde aos filtros.</div>
+
+{% endfor %}
+
+</div>
+
+
+<div id="noResults" class="empty hidden">
+    Nenhum serviço corresponde aos filtros.
+</div>
+
+
 {% endblock %}
