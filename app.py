@@ -104,7 +104,7 @@ def novo_servico():
         endereco = request.form.get("endereco", "").strip()
         data_prevista = request.form.get("data_prevista", "")
         observacoes = request.form.get("observacoes", "").strip()
-        status = "Agendado" if data_prevista and cliente and endereco else "A confirmar"
+        status = "A confirmar"
 
         if not cliente:
             return render_template("novo_servico.html", erro="Informe o cliente/empresa.")
