@@ -67,6 +67,8 @@
     <span class="service-color
         {% if s['status'] == 'Concluído' %}
             green
+        {% elif s['status'] == 'Problema / Retorno necessário' %}
+            red
         {% elif s['tipo'] == 'Montagem' %}
             yellow
         {% elif s['tipo'] == 'Assistência Técnica' %}
