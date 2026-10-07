@@ -183,6 +183,7 @@
             id="nome_confirmacao"
             name="nome_confirmacao"
             type="text"
+            data-nome-cliente="{{ servico['cliente']|e }}"
             placeholder="{{ servico['cliente'] }}"
             autocomplete="off"
             required>
@@ -196,7 +197,7 @@
 <script>
 function confirmarExclusao() {
     const campo = document.getElementById("nome_confirmacao");
-    const nomeCliente = {{ servico['cliente']|tojson }};
+    const nomeCliente = campo.dataset.nomeCliente;
 
     if (campo.value !== nomeCliente) {
         alert("O nome digitado não corresponde exatamente ao cliente/empresa.");
