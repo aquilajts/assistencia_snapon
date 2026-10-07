@@ -23,6 +23,10 @@ dl{margin:0}dl div{display:flex;justify-content:space-between;gap:20px;padding:1
     color:#111;
 }
 
+.service-color.red{
+    background:var(--red);
+}
+
 .white-choice small{
     color:#555;
 }
