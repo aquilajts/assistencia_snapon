@@ -18,31 +18,36 @@ def utility_processor():
 
 @app.route("/")
 def index():
-    conn = get_db()
     hoje = date.today().isoformat()
-    inicio_semana = (date.today().toordinal() - date.today().weekday())
+    inicio_semana = date.today().toordinal() - date.today().weekday()
     semana = date.fromordinal(inicio_semana)
     fim_semana = date.fromordinal(inicio_semana + 6)
 
-    total_hoje = conn.execute(
-        "SELECT COUNT(*) FROM servicos WHERE data_prevista = ?", (hoje,)
-    ).fetchone()[0]
-    pendentes = conn.execute(
-        "SELECT COUNT(*) FROM servicos WHERE status != 'Concluído'"
-    ).fetchone()[0]
-    semana_total = conn.execute(
-        "SELECT COUNT(*) FROM servicos WHERE data_prevista BETWEEN ? AND ?",
-        (semana.isoformat(), fim_semana.isoformat())
-    ).fetchone()[0]
+    total_hoje = supabase.table("3_ata_servicos") \
+        .select("id", count="exact") \
+        .eq("data_prevista", hoje) \
+        .execute().count or 0
+
+    pendentes = supabase.table("3_ata_servicos") \
+        .select("id", count="exact") \
+        .neq("status", "Concluído") \
+        .execute().count or 0
+
+    semana_total = supabase.table("3_ata_servicos") \
+        .select("id", count="exact") \
+        .gte("data_prevista", semana.isoformat()) \
+        .lte("data_prevista", fim_semana.isoformat()) \
+        .execute().count or 0
 
     regioes = {}
-    for regiao in ["Norte", "Sul", "Grande Vitória"]:
-        regioes[regiao] = conn.execute(
-            "SELECT COUNT(*) FROM servicos WHERE regiao = ? AND status != 'Concluído'",
-            (regiao,)
-        ).fetchone()[0]
 
-    conn.close()
+    for regiao in ["Norte", "Sul", "Grande Vitória"]:
+        regioes[regiao] = supabase.table("3_ata_servicos") \
+            .select("id", count="exact") \
+            .eq("regiao", regiao) \
+            .neq("status", "Concluído") \
+            .execute().count or 0
+
     return render_template(
         "index.html",
         total_hoje=total_hoje,
@@ -51,14 +56,16 @@ def index():
         regioes=regioes
     )
 
-
 @app.route("/servicos")
 def servicos():
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM servicos ORDER BY CASE WHEN data_prevista IS NULL OR data_prevista='' THEN 1 ELSE 0 END, data_prevista ASC, id DESC"
-    ).fetchall()
-    conn.close()
+    response = supabase.table("3_ata_servicos") \
+        .select("*") \
+        .order("data_prevista", desc=False, nullsfirst=False) \
+        .order("id", desc=True) \
+        .execute()
+
+    rows = response.data
+
     return render_template("servicos.html", servicos=rows)
 
 
