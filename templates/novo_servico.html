@@ -15,9 +15,15 @@
                 <input type="radio" name="tipo" value="Montagem" checked>
                 <span><b>Montagem</b><small>Amarelo</small></span>
             </label>
+        
             <label class="choice blue-choice">
                 <input type="radio" name="tipo" value="Assistência Técnica">
                 <span><b>Assistência Técnica</b><small>Azul</small></span>
+            </label>
+        
+            <label class="choice white-choice">
+                <input type="radio" name="tipo" value="Garantia">
+                <span><b>Garantia</b><small>Branco</small></span>
             </label>
         </div>
     </div>
@@ -40,10 +46,16 @@
             <label for="cliente">Cliente / empresa *</label>
             <input id="cliente" name="cliente" placeholder="Ex.: Empresa XYZ" required autofocus>
         </div>
+    
         <div>
-            <label for="endereco">Endereço</label>
-            <input id="endereco" name="endereco" placeholder="Rua, número, cidade">
+            <label for="telefone">Telefone</label>
+            <input id="telefone" name="telefone" type="tel" placeholder="(27) 99999-9999">
         </div>
+    </div>
+    
+    <div>
+        <label for="endereco">Endereço</label>
+        <input id="endereco" name="endereco" placeholder="Rua, número, cidade">
     </div>
 
     <div>
