@@ -8,6 +8,9 @@ app = Flask(__name__)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
+#SUPABASE_URL = "https://maxdqycohsopgeacpyoy.supabase.co"
+#SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1heGRxeWNvaHNvcGdlYWNweW95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODY5MzEsImV4cCI6MjA2NzU2MjkzMX0.Noj3VmkV3zJ3iRlptetkIzL9g_-ZU4wx_gnhzLMFyMA"
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
@@ -109,6 +112,49 @@ def novo_servico():
     return render_template("novo_servico.html", erro=None)
 
 
+@app.route("/servicos/<int:servico_id>/editar", methods=["GET", "POST"])
+def editar_servico(servico_id):
+    servico_response = supabase.table("3_ata_servicos") \
+        .select("*") \
+        .eq("id", servico_id) \
+        .single() \
+        .execute()
+
+    servico = servico_response.data
+    if not servico:
+        return "Serviço não encontrado", 404
+
+    erro = None
+    data_prevista_input = str(servico.get("data_prevista") or "")[:10]
+
+    if request.method == "POST":
+        dados = {
+            "tipo": request.form.get("tipo", ""),
+            "regiao": request.form.get("regiao", ""),
+            "cliente": request.form.get("cliente", "").strip(),
+            "telefone": request.form.get("telefone", "").strip(),
+            "endereco": request.form.get("endereco", "").strip(),
+            "data_prevista": request.form.get("data_prevista", ""),
+            "observacoes": request.form.get("observacoes", "").strip(),
+        }
+        data_prevista_input = dados["data_prevista"]
+
+        if not dados["cliente"]:
+            erro = "Informe o cliente/empresa."
+            servico.update(dados)
+        else:
+            dados["data_prevista"] = dados["data_prevista"] or None
+            supabase.table("3_ata_servicos").update(dados).eq("id", servico_id).execute()
+            return redirect(url_for("detalhes", servico_id=servico_id))
+
+    return render_template(
+        "editar_servico.html",
+        servico=servico,
+        data_prevista_input=data_prevista_input,
+        erro=erro,
+    )
+
+
 @app.route("/servicos/<int:servico_id>")
 def detalhes(servico_id):
     servico_response = supabase.table("3_ata_servicos") \
@@ -130,7 +176,30 @@ def detalhes(servico_id):
     if not servico:
         return "Serviço não encontrado", 404
 
-    return render_template("detalhes.html", servico=servico, historico=historico)
+    data_prevista = servico.get("data_prevista")
+    data_prevista_formatada = (
+        datetime.strptime(str(data_prevista)[:10], "%Y-%m-%d").strftime("%d-%m-%Y")
+        if data_prevista else None
+    )
+    criado_em = servico.get("criado_em")
+    criado_em_formatado = (
+        datetime.strptime(str(criado_em)[:10], "%Y-%m-%d").strftime("%d-%m-%Y")
+        if criado_em else None
+    )
+    telefone = str(servico.get("telefone") or "")
+    telefone_digitos = "".join(caractere for caractere in telefone if caractere.isdigit())
+    telefone_whatsapp = (
+        telefone_digitos if telefone_digitos.startswith("55") else f"55{telefone_digitos}"
+    ) if telefone_digitos else ""
+
+    return render_template(
+        "detalhes.html",
+        servico=servico,
+        historico=historico,
+        data_prevista_formatada=data_prevista_formatada,
+        criado_em_formatado=criado_em_formatado,
+        telefone_whatsapp=telefone_whatsapp,
+    )
 
 
 @app.route("/servicos/<int:servico_id>/status", methods=["POST"])
