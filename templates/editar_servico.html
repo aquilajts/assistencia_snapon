@@ -3,7 +3,6 @@
 {% block content %}
 <div class="page-head">
     <div>
-        <a class="back" href="{{ url_for('detalhes', servico_id=servico['id']) }}">← Voltar para o serviço</a>
         <p class="eyebrow">EDITAR CADASTRO</p>
         <h1>{{ servico['cliente'] }}</h1>
     </div>
@@ -27,18 +26,30 @@
                 <input type="radio" name="tipo" value="Garantia" {% if servico['tipo'] == 'Garantia' %}checked{% endif %}>
                 <span><b>Garantia</b></span>
             </label>
+            <label class="choice">
+                <input type="radio" name="tipo" value="Rascunho" {% if servico['tipo'] == 'Rascunho' %}checked{% endif %}>
+                <span><b>Rascunho</b></span>
+            </label>
         </div>
     </div>
 
     <div class="form-grid">
         <div>
-            <label for="regiao">Região</label>
-            <select id="regiao" name="regiao">
-                {% for regiao in ["Norte", "Sul", "Grande Vitória"] %}
-                <option value="{{ regiao }}" {% if servico['regiao'] == regiao %}selected{% endif %}>{{ regiao }}</option>
+            <label for="cidade">Cidade *</label>
+            <input id="cidade" name="cidade" list="municipios" value="{{ servico.get('cidade') or '' }}" placeholder="Pesquise ou selecione a cidade" required>
+            <datalist id="municipios">
+                {% for item in municipios %}
+                <option value="{{ item['municipio'] }}" data-regiao="{{ item['regiao'] }}"></option>
                 {% endfor %}
-            </select>
+            </datalist>
         </div>
+        <div>
+            <label for="regiao">Região (automática)</label>
+            <input id="regiao" type="text" value="{{ regiao_selecionada }}" placeholder="Definida pela cidade" readonly>
+        </div>
+    </div>
+
+    <div class="form-grid">
         <div>
             <label for="data_prevista">Data prevista</label>
             <input id="data_prevista" type="date" name="data_prevista" value="{{ data_prevista_input }}">
