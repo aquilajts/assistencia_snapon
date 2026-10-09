@@ -1,50 +1,44 @@
 {% extends "base.html" %}
 {% block title %}Início — Assistência Técnica{% endblock %}
 {% block content %}
-<section class="hero">
-    <div>
-        <p class="eyebrow">PAINEL DE CAMPO</p>
-        <h1>Minha rotina de serviços</h1>
-        <p class="muted">Cadastre, organize, atenda e registre. Sem burocracia.</p>
-    </div>
-    <a class="button primary big" href="{{ url_for('novo_servico') }}">+ Cadastrar serviço</a>
+<section class="stats home-stats">
+    <a class="stat-card" href="{{ url_for('servicos', date='today', status='Agendado') }}">
+        <span>Hoje - Agendado</span><strong>{{ agendados_hoje }}</strong>
+    </a>
+    <a class="stat-card" href="{{ url_for('servicos', date='next5', status='Agendado') }}">
+        <span>Agendados próximos</span><strong>{{ agendados_proximos }}</strong>
+    </a>
+    <a class="stat-card stat-confirm" href="{{ url_for('servicos', date='next10', status='A confirmar') }}">
+        <span>Confirmar agendamento</span><strong>{{ confirmar_agendamento }}</strong>
+    </a>
+    <a class="stat-card stat-draft" href="{{ url_for('servicos', date='all', type='Rascunho', status='Rascunho') }}">
+        <span>Completar O.S</span><strong>{{ completar_os }}</strong>
+    </a>
+    <a class="stat-card stat-bling-done" href="{{ url_for('servicos', date='month', status='Finalizado Bling') }}">
+        <span>Finalizado Bling - mês</span><strong>{{ finalizado_bling_mes }}</strong>
+    </a>
+    <a class="stat-card stat-update-bling" href="{{ url_for('servicos', date='month', status='Concluído') }}">
+        <span>Atualizar Bling</span><strong>{{ atualizar_bling }}</strong>
+    </a>
 </section>
 
-<section class="stats">
-    <div class="stat-card">
-        <span>Hoje</span><strong>{{ total_hoje }}</strong><small>serviços previstos</small>
-    </div>
-    <div class="stat-card">
-        <span>Pendentes</span><strong>{{ pendentes }}</strong><small>não concluídos</small>
-    </div>
-    <div class="stat-card">
-        <span>Esta semana</span><strong>{{ semana_total }}</strong><small>serviços na agenda</small>
-    </div>
-</section>
-
-<div class="grid-2">
-    <section class="panel">
-        <div class="panel-head">
-            <div><p class="eyebrow">ACESSO RÁPIDO</p><h2>O que você precisa fazer?</h2></div>
+<section class="panel">
+    <div class="panel-head"><div><p class="eyebrow">PENDENTES</p><h2>Por região</h2></div></div>
+    <div class="region-list">
+        <div class="region-row region-header">
+            <span>Região</span>
+            <div class="region-counts"><strong>7D</strong><strong>15D</strong><strong>Mês</strong></div>
         </div>
-        <div class="quick-actions">
-            <a href="{{ url_for('novo_servico') }}" class="quick yellow"><b>+ Cadastrar serviço</b><span>Montagem ou assistência</span></a>
-            <a href="{{ url_for('servicos') }}" class="quick blue"><b>Consultar serviços</b><span>Agenda e filtros</span></a>
+        {% for nome, totais in regioes.items() %}
+        <div class="region-row">
+            <span>{{ nome }}</span>
+            <div class="region-counts">
+                <strong>{{ totais["7D"] }}</strong>
+                <strong>{{ totais["15D"] }}</strong>
+                <strong>{{ totais["Mês"] }}</strong>
+            </div>
         </div>
-    </section>
-
-    <section class="panel">
-        <div class="panel-head"><div><p class="eyebrow">PENDENTES</p><h2>Por região</h2></div></div>
-        <div class="region-list">
-            {% for nome, total in regioes.items() %}
-            <div class="region-row"><span>{{ nome }}</span><strong>{{ total }}</strong></div>
-            {% endfor %}
-        </div>
-    </section>
-</div>
-
-<section class="principle">
-    <span>FLUXO PRINCIPAL</span>
-    <b>Cadastrar → Organizar → Atender → Registrar → Concluir</b>
+        {% endfor %}
+    </div>
 </section>
 {% endblock %}
