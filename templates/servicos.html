@@ -2,47 +2,47 @@
 {% block title %}Serviços{% endblock %}
 {% block content %}
 
-<div class="page-head split">
-    <div>
-        <p class="eyebrow">AGENDA</p>
-        <h1>Serviços</h1>
-        <p class="muted">
-            Visualize rapidamente o que está pendente e o que já foi concluído.
-        </p>
-    </div>
-
-    <a class="button primary" href="{{ url_for('novo_servico') }}">
-        + Cadastrar
-    </a>
+<div class="page-head agenda-head">
+    <p class="eyebrow">AGENDA</p>
 </div>
 
-<section class="filters">
+<input
+    id="busca"
+    class="agenda-search"
+    type="search"
+    placeholder="Buscar cliente, cidade, endereço ou observação..."
+>
 
-    <input
-        id="busca"
-        type="search"
-        placeholder="Buscar cliente, endereço ou observação..."
-    >
+<section class="filters">
+    <select id="filtroData">
+        <option value="today">Hoje</option>
+        <option value="next5" selected>Próximos 5 dias</option>
+        <option value="next10">Próximos 10 dias</option>
+        <option value="month">Mês</option>
+        <option value="all">Todos</option>
+    </select>
 
     <select id="filtroTipo">
         <option value="">Todos os tipos</option>
         <option>Montagem</option>
         <option>Assistência Técnica</option>
         <option>Garantia</option>
+        <option>Rascunho</option>
     </select>
 
     <select id="filtroRegiao">
         <option value="">Todas as regiões</option>
-        <option>Norte</option>
-        <option>Sul</option>
-        <option>Grande Vitória</option>
+        {% for regiao in regioes %}
+        <option value="{{ regiao }}">{{ regiao }}</option>
+        {% endfor %}
     </select>
 
     <select id="filtroStatus">
-        <option value="">Todos os status</option>
+        <option value="">Todos, exceto Finalizado Bling</option>
+        <option>Rascunho</option>
         <option>A confirmar</option>
         <option>Agendado</option>
-        <option>Em andamento</option>
+        <option>Finalizado Bling</option>
         <option>Concluído</option>
         <option>Problema / Retorno necessário</option>
     </select>
@@ -55,17 +55,20 @@
 {% for s in servicos %}
 
 <a
-    class="service-card"
+    class="service-card{% if s['tipo'] == 'Rascunho' %} draft{% endif %}"
     href="{{ url_for('detalhes', servico_id=s['id']) }}"
     data-tipo="{{ s['tipo'] }}"
     data-regiao="{{ s['regiao'] }}"
     data-status="{{ s['status'] }}"
-    data-search="{{ (s['cliente'] ~ ' ' ~ s['endereco'] ~ ' ' ~ s['observacoes'])|lower }}"
+    data-date="{{ s['data_prevista'][:10] if s['data_prevista'] else '' }}"
+    data-search="{{ (s['cliente'] ~ ' ' ~ s['cidade'] ~ ' ' ~ s['endereco'] ~ ' ' ~ s['observacoes'])|lower }}"
 >
 
     {# COR DA BARRA LATERAL #}
     <span class="service-color
-        {% if s['status'] == 'Concluído' %}
+        {% if s['tipo'] == 'Rascunho' %}
+            brown
+        {% elif s['status'] in ['Concluído', 'Finalizado Bling'] %}
             green
         {% elif s['status'] == 'Problema / Retorno necessário' %}
             red
@@ -83,11 +86,10 @@
 
         <div class="service-top">
 
-            <strong>{{ s['cliente'] }}</strong>
-
-            <span class="status status-{{ s['status']|lower|replace(' ', '-')|replace('/', '')|replace('ã','a') }}">
-                {{ s['status'] }}
-            </span>
+            <strong>
+                {{ (s['data_prevista'][8:10] ~ '/' ~ s['data_prevista'][5:7]) if s['data_prevista'] else 'Sem data' }}
+                - {{ s['status'] }} - {{ s['cliente'] }}
+            </strong>
 
         </div>
 
@@ -96,18 +98,15 @@
 
             <span>{{ s['tipo'] }}</span>
 
-            <span>{{ s['regiao'] }}</span>
-
-            <span>
-                {{ s['data_prevista']|replace('-', '/') if s['data_prevista'] else 'Sem data' }}
-            </span>
+            <span>{{ s['cidade'] or 'Cidade não informada' }}</span>
 
         </div>
 
 
-        {% if s['endereco'] %}
-        <p>{{ s['endereco'] }}</p>
-        {% endif %}
+        {% set descricao = s['observacoes'] or '' %}
+        <p>
+            {{ descricao[:45] if descricao|length <= 45 else descricao[:44] ~ '…' }}
+        </p>
 
     </div>
 
