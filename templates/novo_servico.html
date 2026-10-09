@@ -1,40 +1,51 @@
 {% extends "base.html" %}
 {% block title %}Cadastrar serviço{% endblock %}
 {% block content %}
-<div class="page-head">
-    <div><p class="eyebrow">NOVO ATENDIMENTO</p><h1>Cadastrar serviço</h1><p class="muted">Preencha somente o essencial. O restante pode ser completado depois.</p></div>
-</div>
-
 <form method="post" class="form-card">
     {% if erro %}<div class="alert">{{ erro }}</div>{% endif %}
 
     <div class="form-section">
         <label>Tipo de serviço</label>
         <div class="choice-grid">
-            <label class="choice yellow-choice">
+            <label class="choice">
                 <input type="radio" name="tipo" value="Montagem" checked>
-                <span><b>Montagem</b><small>Amarelo</small></span>
+                <span><b>Montagem</b></span>
             </label>
         
-            <label class="choice blue-choice">
+            <label class="choice">
                 <input type="radio" name="tipo" value="Assistência Técnica">
-                <span><b>Assistência Técnica</b><small>Azul</small></span>
+                <span><b>Assistência Técnica</b></span>
             </label>
         
-            <label class="choice white-choice">
+            <label class="choice">
                 <input type="radio" name="tipo" value="Garantia">
-                <span><b>Garantia</b><small>Branco</small></span>
+                <span><b>Garantia</b></span>
+            </label>
+
+            <label class="choice">
+                <input type="radio" name="tipo" value="Rascunho">
+                <span><b>Rascunho</b></span>
             </label>
         </div>
     </div>
 
     <div class="form-grid">
         <div>
-            <label for="regiao">Região</label>
-            <select id="regiao" name="regiao">
-                <option>Norte</option><option>Sul</option><option selected>Grande Vitória</option>
-            </select>
+            <label for="cidade">Cidade *</label>
+            <input id="cidade" name="cidade" list="municipios" value="{{ cidade_selecionada }}" placeholder="Pesquise ou selecione a cidade" required>
+            <datalist id="municipios">
+                {% for item in municipios %}
+                <option value="{{ item['municipio'] }}" data-regiao="{{ item['regiao'] }}"></option>
+                {% endfor %}
+            </datalist>
         </div>
+        <div>
+            <label for="regiao">Região (automática)</label>
+            <input id="regiao" type="text" value="{{ regiao_selecionada }}" placeholder="Definida pela cidade" readonly>
+        </div>
+    </div>
+
+    <div class="form-grid">
         <div>
             <label for="data_prevista">Data prevista</label>
             <input id="data_prevista" type="date" name="data_prevista">
