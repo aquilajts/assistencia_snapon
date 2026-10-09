@@ -10,12 +10,22 @@
 <header class="topbar">
     <a class="brand" href="{{ url_for('index') }}">
         <span class="brand-mark">S</span>
-        <span>Serviços <b>Snap-on</b></span>
+        <span>
+            {% if request.endpoint == 'index' %}
+                Snap-on
+            {% elif request.endpoint == 'servicos' %}
+                Serviços
+            {% elif request.endpoint in ['novo_servico', 'editar_servico'] %}
+                Cadastro
+            {% else %}
+                Serviço
+            {% endif %}
+        </span>
     </a>
     <nav>
-        <a href="{{ url_for('index') }}">Início</a>
+        <a class="nav-home" href="{{ url_for('index') }}">Início</a>
         <a href="{{ url_for('servicos') }}">Serviços</a>
-        <a class="nav-primary" href="{{ url_for('novo_servico') }}">+ Cadastrar</a>
+        <a class="nav-primary" href="{{ url_for('novo_servico') }}">Cadastro</a>
     </nav>
 </header>
 
