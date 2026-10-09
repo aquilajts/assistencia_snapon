@@ -2,18 +2,40 @@
 {% block title %}Serviço #{{ servico['id'] }}{% endblock %}
 {% block content %}
 
-<div class="page-head split">
-    <div>
-        <a class="back" href="{{ url_for('servicos') }}">← Voltar para serviços</a>
+<div class="page-head service-detail-head">
+    <div class="service-heading-row">
         <p class="eyebrow">SERVIÇO #{{ "%05d"|format(servico['id']) }}</p>
-        <h1>{{ servico['cliente'] }}</h1>
-        <p class="muted">{{ servico['tipo'] }} · {{ servico['regiao'] }}</p>
-        <a class="button ghost" href="{{ url_for('editar_servico', servico_id=servico['id']) }}">Editar cadastro</a>
+        <form method="post"
+              id="statusForm"
+              action="{{ url_for('alterar_status', servico_id=servico['id']) }}"
+              class="status-select-form">
+            <select name="status" aria-label="Status do serviço">
+                {% for st in [
+                    "Rascunho",
+                    "A confirmar",
+                    "Agendado",
+                    "Finalizado Bling",
+                    "Concluído",
+                    "Problema / Retorno necessário"
+                ] %}
+                <option {% if st == servico['status'] %}selected{% endif %}>
+                    {{ st }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
 
-    <span class="big-status {{ 'done' if servico['status']=='Concluído' else '' }}">
-        {{ servico['status'] }}
-    </span>
+    <div class="service-title-row">
+        <div>
+        <h1>{{ servico['cliente'] }}</h1>
+        <p class="muted">{{ servico['tipo'] }} · {{ servico['regiao'] }}</p>
+        </div>
+        <div class="service-actions">
+            <a class="button ghost compact-button" href="{{ url_for('editar_servico', servico_id=servico['id']) }}">Editar</a>
+            <button class="button primary compact-button" type="submit" form="statusForm">Salvar</button>
+        </div>
+    </div>
 </div>
 
 <div class="detail-grid">
@@ -30,6 +52,11 @@
             <div>
                 <dt>Região</dt>
                 <dd>{{ servico['regiao'] }}</dd>
+            </div>
+
+            <div>
+                <dt>Cidade</dt>
+                <dd>{{ servico.get('cidade') or 'Não informada' }}</dd>
             </div>
 
             <div>
@@ -73,34 +100,6 @@
         </dl>
     </section>
 
-    <section class="panel">
-        <h2>Status</h2>
-
-        <form method="post"
-              action="{{ url_for('alterar_status', servico_id=servico['id']) }}"
-              class="status-form">
-
-            <select name="status">
-                {% for st in [
-                    "A confirmar",
-                    "Agendado",
-                    "Em andamento",
-                    "Concluído",
-                    "Problema / Retorno necessário"
-                ] %}
-                <option {% if st == servico['status'] %}selected{% endif %}>
-                    {{ st }}
-                </option>
-                {% endfor %}
-            </select>
-
-            <button class="button primary" type="submit">
-                Atualizar status
-            </button>
-        </form>
-
-    </section>
-
 </div>
 
 <section class="panel">
@@ -116,7 +115,7 @@
     <div class="timeline">
         {% for h in historico %}
         <article>
-            <time>{{ h['criado_em']|replace('T',' ') }}</time>
+            <time>{{ h['criado_em_formatado'] }}</time>
             <p>{{ h['texto'] }}</p>
         </article>
         {% else %}
@@ -143,23 +142,32 @@
     <h2>Checklist de conclusão</h2>
 
     <label>
-        <input type="checkbox">
+        <input type="checkbox"
+               name="foto_servico"
+               form="statusForm"
+               {% if servico.get('foto_servico') %}checked{% endif %}>
         Foto do serviço
     </label>
 
     <label>
-        <input type="checkbox">
+        <input type="checkbox"
+               name="assinatura_cliente"
+               form="statusForm"
+               {% if servico.get('assinatura_cliente') %}checked{% endif %}>
         Assinatura do cliente
     </label>
 
     <label>
-        <input type="checkbox">
+        <input type="checkbox"
+               name="epi_utilizado"
+               form="statusForm"
+               {% if servico.get('epi_utilizado') %}checked{% endif %}>
         EPI utilizado
     </label>
 
     <p class="muted small">
-        Nesta primeira versão, o checklist é local na tela.
-        Upload de fotos e assinatura digital ficam preparados para uma próxima etapa.
+        Marque os itens e clique em “Salvar” para registrar o checklist.
+        Este checklist registra apenas a confirmação; não envia foto nem captura assinatura digital.
     </p>
 </section>
 
