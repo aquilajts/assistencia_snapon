@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
 app = Flask(__name__)
@@ -13,6 +13,23 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+REGIOES_ES = [
+    "Grande Vitória",
+    "Norte",
+    "Noroeste",
+    "Serrana",
+    "Sul",
+    "Sul / Caparaó",
+]
+
+
+def carregar_municipios():
+    response = supabase.table("3_ata_regiao") \
+        .select("municipio, regiao") \
+        .order("municipio") \
+        .execute()
+    return response.data
+
 
 @app.context_processor
 def utility_processor():
@@ -21,41 +38,63 @@ def utility_processor():
 
 @app.route("/")
 def index():
-    hoje = date.today().isoformat()
-    inicio_semana = date.today().toordinal() - date.today().weekday()
-    semana = date.fromordinal(inicio_semana)
-    fim_semana = date.fromordinal(inicio_semana + 6)
+    hoje = date.today()
+    inicio_mes = hoje.replace(day=1)
+    proximo_mes = (inicio_mes.replace(day=28) + timedelta(days=4)).replace(day=1)
+    fim_mes = proximo_mes - timedelta(days=1)
 
-    total_hoje = supabase.table("3_ata_servicos") \
-        .select("id", count="exact") \
-        .eq("data_prevista", hoje) \
-        .execute().count or 0
+    def contar_status(status, data_inicio=None, data_fim=None):
+        consulta = supabase.table("3_ata_servicos") \
+            .select("id", count="exact") \
+            .eq("status", status)
+        if data_inicio:
+            consulta = consulta.gte("data_prevista", data_inicio.isoformat())
+        if data_fim:
+            consulta = consulta.lte("data_prevista", data_fim.isoformat())
+        return consulta.execute().count or 0
 
-    pendentes = supabase.table("3_ata_servicos") \
-        .select("id", count="exact") \
-        .neq("status", "Concluído") \
-        .execute().count or 0
+    agendados_hoje = contar_status("Agendado", hoje, hoje)
+    agendados_proximos = contar_status("Agendado", hoje, hoje + timedelta(days=4))
+    confirmar_agendamento = contar_status("A confirmar", hoje, hoje + timedelta(days=9))
+    completar_os = contar_status("Rascunho")
+    finalizado_bling_mes = contar_status("Finalizado Bling", inicio_mes, fim_mes)
+    atualizar_bling = contar_status("Concluído", inicio_mes, fim_mes)
 
-    semana_total = supabase.table("3_ata_servicos") \
-        .select("id", count="exact") \
-        .gte("data_prevista", semana.isoformat()) \
-        .lte("data_prevista", fim_semana.isoformat()) \
-        .execute().count or 0
+    municipios = carregar_municipios()
+    cidades_por_regiao = {
+        regiao: [item["municipio"] for item in municipios if item["regiao"] == regiao]
+        for regiao in REGIOES_ES
+    }
 
     regioes = {}
+    for regiao, cidades in cidades_por_regiao.items():
+        if not cidades:
+            regioes[regiao] = {"7D": 0, "15D": 0, "Mês": 0}
+            continue
 
-    for regiao in ["Norte", "Sul", "Grande Vitória"]:
-        regioes[regiao] = supabase.table("3_ata_servicos") \
-            .select("id", count="exact") \
-            .eq("regiao", regiao) \
-            .neq("status", "Concluído") \
-            .execute().count or 0
+        def contar_regiao(data_inicio, data_fim):
+            return supabase.table("3_ata_servicos") \
+                .select("id", count="exact") \
+                .in_("cidade", cidades) \
+                .gte("data_prevista", data_inicio.isoformat()) \
+                .lte("data_prevista", data_fim.isoformat()) \
+                .neq("status", "Finalizado Bling") \
+                .execute().count or 0
+
+        regioes[regiao] = {
+            "7D": contar_regiao(hoje, hoje + timedelta(days=6)),
+            "15D": contar_regiao(hoje, hoje + timedelta(days=14)),
+            "Mês": contar_regiao(inicio_mes, fim_mes),
+        }
 
     return render_template(
         "index.html",
-        total_hoje=total_hoje,
-        pendentes=pendentes,
-        semana_total=semana_total,
+        agendados_hoje=agendados_hoje,
+        agendados_proximos=agendados_proximos,
+        confirmar_agendamento=confirmar_agendamento,
+        completar_os=completar_os,
+        finalizado_bling_mes=finalizado_bling_mes,
+        atualizar_bling=atualizar_bling,
         regioes=regioes
     )
 
@@ -67,35 +106,69 @@ def servicos():
         .order("id", desc=True) \
         .execute()
 
+    municipios = carregar_municipios()
+    regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
     rows = response.data
+    for row in rows:
+        row["regiao"] = regioes_por_municipio.get(row.get("cidade"), row.get("regiao", ""))
 
-    return render_template("servicos.html", servicos=rows)
+    return render_template(
+        "servicos.html",
+        servicos=rows,
+        regioes=REGIOES_ES,
+    )
 
 
 @app.route("/servicos/novo", methods=["GET", "POST"])
 def novo_servico():
+    municipios = carregar_municipios()
+    regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
     if request.method == "POST":
         tipo = request.form.get("tipo", "Assistência Técnica")
-        regiao = request.form.get("regiao", "Grande Vitória")
         cliente = request.form.get("cliente", "").strip()
+        cidade = request.form.get("cidade", "").strip()
+        if tipo not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
+            return render_template(
+                "novo_servico.html",
+                erro="Tipo de serviço inválido.",
+                municipios=municipios,
+                cidade_selecionada=cidade,
+                regiao_selecionada=regioes_por_municipio.get(cidade, ""),
+            )
         telefone = request.form.get("telefone", "").strip()
         endereco = request.form.get("endereco", "").strip()
         data_prevista = request.form.get("data_prevista", "")
         observacoes = request.form.get("observacoes", "").strip()
-        status = "A confirmar"
+        status = "Rascunho" if tipo == "Rascunho" else "A confirmar"
 
         if not cliente:
-            return render_template("novo_servico.html", erro="Informe o cliente/empresa.")
+            return render_template(
+                "novo_servico.html",
+                erro="Informe o cliente/empresa.",
+                municipios=municipios,
+                cidade_selecionada=cidade,
+                regiao_selecionada=regioes_por_municipio.get(cidade, ""),
+            )
+        regiao = regioes_por_municipio.get(cidade)
+        if not regiao:
+            return render_template(
+                "novo_servico.html",
+                erro="Selecione uma cidade válida da lista.",
+                municipios=municipios,
+                cidade_selecionada=cidade,
+                regiao_selecionada="",
+            )
 
         cur = supabase.table("3_ata_servicos").insert({
             "tipo": tipo,
             "regiao": regiao,
             "cliente": cliente,
+            "cidade": cidade,
             "telefone": telefone,
             "endereco": endereco,
             "data_prevista": data_prevista or None,
             "observacoes": observacoes,
-            "status": "A confirmar",
+            "status": status,
             "criado_em": datetime.now().isoformat(timespec="seconds")
         }).execute()
         
@@ -109,7 +182,13 @@ def novo_servico():
             }).execute()
         return redirect(url_for("detalhes", servico_id=servico_id))
 
-    return render_template("novo_servico.html", erro=None)
+    return render_template(
+        "novo_servico.html",
+        erro=None,
+        municipios=municipios,
+        cidade_selecionada="",
+        regiao_selecionada="",
+    )
 
 
 @app.route("/servicos/<int:servico_id>/editar", methods=["GET", "POST"])
@@ -126,12 +205,14 @@ def editar_servico(servico_id):
 
     erro = None
     data_prevista_input = str(servico.get("data_prevista") or "")[:10]
+    municipios = carregar_municipios()
+    regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
 
     if request.method == "POST":
         dados = {
             "tipo": request.form.get("tipo", ""),
-            "regiao": request.form.get("regiao", ""),
             "cliente": request.form.get("cliente", "").strip(),
+            "cidade": request.form.get("cidade", "").strip(),
             "telefone": request.form.get("telefone", "").strip(),
             "endereco": request.form.get("endereco", "").strip(),
             "data_prevista": request.form.get("data_prevista", ""),
@@ -139,10 +220,21 @@ def editar_servico(servico_id):
         }
         data_prevista_input = dados["data_prevista"]
 
-        if not dados["cliente"]:
+        if dados["tipo"] not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
+            erro = "Tipo de serviço inválido."
+            servico.update(dados)
+        elif not dados["cliente"]:
             erro = "Informe o cliente/empresa."
             servico.update(dados)
+        elif dados["cidade"] not in regioes_por_municipio:
+            erro = "Selecione uma cidade válida da lista."
+            servico.update(dados)
         else:
+            dados["regiao"] = regioes_por_municipio[dados["cidade"]]
+            if dados["tipo"] == "Rascunho":
+                dados["status"] = "Rascunho"
+            elif servico.get("tipo") == "Rascunho" or servico.get("status") == "Rascunho":
+                dados["status"] = "A confirmar"
             dados["data_prevista"] = dados["data_prevista"] or None
             supabase.table("3_ata_servicos").update(dados).eq("id", servico_id).execute()
             return redirect(url_for("detalhes", servico_id=servico_id))
@@ -151,6 +243,8 @@ def editar_servico(servico_id):
         "editar_servico.html",
         servico=servico,
         data_prevista_input=data_prevista_input,
+        municipios=municipios,
+        regiao_selecionada=regioes_por_municipio.get(servico.get("cidade"), ""),
         erro=erro,
     )
 
@@ -164,6 +258,12 @@ def detalhes(servico_id):
         .execute()
     
     servico = servico_response.data
+    municipio = next(
+        (item for item in carregar_municipios() if item["municipio"] == servico.get("cidade")),
+        None,
+    ) if servico else None
+    if municipio:
+        servico["regiao"] = municipio["regiao"]
     
     historico_response = supabase.table("3_ata_historico") \
         .select("*") \
@@ -175,6 +275,10 @@ def detalhes(servico_id):
 
     if not servico:
         return "Serviço não encontrado", 404
+
+    for item in historico:
+        timestamp = str(item["criado_em"]).replace("Z", "+00:00")
+        item["criado_em_formatado"] = datetime.fromisoformat(timestamp).strftime("%d/%m/%Y - %H:%M")
 
     data_prevista = servico.get("data_prevista")
     data_prevista_formatada = (
@@ -205,20 +309,40 @@ def detalhes(servico_id):
 @app.route("/servicos/<int:servico_id>/status", methods=["POST"])
 def alterar_status(servico_id):
     status = request.form.get("status", "")
-    permitidos = ["A confirmar", "Agendado", "Em andamento", "Concluído", "Problema / Retorno necessário"]
+    permitidos = ["Rascunho", "A confirmar", "Agendado", "Finalizado Bling", "Concluído", "Problema / Retorno necessário"]
     if status not in permitidos:
         return redirect(url_for("detalhes", servico_id=servico_id))
 
-    data_conclusao = datetime.now().isoformat(timespec="seconds") if status == "Concluído" else None
-    
-    supabase.table("3_ata_servicos").update({
+    servico_response = supabase.table("3_ata_servicos") \
+        .select("tipo") \
+        .eq("id", servico_id) \
+        .single() \
+        .execute()
+    servico = servico_response.data
+    if not servico:
+        return "Serviço não encontrado", 404
+
+    dados = {
         "status": status,
-        "data_conclusao": data_conclusao
-    }).eq("id", servico_id).execute()
-    if status == "Concluído":
+        "foto_servico": request.form.get("foto_servico") == "on",
+        "assinatura_cliente": request.form.get("assinatura_cliente") == "on",
+        "epi_utilizado": request.form.get("epi_utilizado") == "on",
+    }
+    if status == "Rascunho":
+        dados["tipo"] = "Rascunho"
+    elif servico["tipo"] == "Rascunho":
+        status = "Rascunho"
+        dados["status"] = status
+
+    finalizados = ["Concluído", "Finalizado Bling"]
+    data_conclusao = datetime.now().isoformat(timespec="seconds") if status in finalizados else None
+    dados["data_conclusao"] = data_conclusao
+    
+    supabase.table("3_ata_servicos").update(dados).eq("id", servico_id).execute()
+    if status in finalizados:
         supabase.table("3_ata_historico").insert({
             "servico_id": servico_id,
-            "texto": "Serviço marcado como concluído.",
+            "texto": f"Serviço marcado como {status.lower()}.",
             "criado_em": datetime.now().isoformat(timespec="seconds")
         }).execute()
     return redirect(url_for("detalhes", servico_id=servico_id))
@@ -275,7 +399,12 @@ def api_servicos():
         .order("id", desc=True) \
         .execute()
 
-    return jsonify(response.data)
+    municipios = carregar_municipios()
+    regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
+    rows = response.data
+    for row in rows:
+        row["regiao"] = regioes_por_municipio.get(row.get("cidade"), row.get("regiao", ""))
+    return jsonify(rows)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
