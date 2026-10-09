@@ -406,5 +406,12 @@ def api_servicos():
         row["regiao"] = regioes_por_municipio.get(row.get("cidade"), row.get("regiao", ""))
     return jsonify(rows)
 
+#if __name__ == "__main__":
+#    app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)
+
