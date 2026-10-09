@@ -1,9 +1,28 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, g
 import os
+import time
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
 app = Flask(__name__)
+
+
+@app.before_request
+def registrar_inicio_requisicao():
+    g.inicio_requisicao = time.perf_counter()
+
+
+@app.after_request
+def registrar_tempo_requisicao(response):
+    inicio = getattr(g, "inicio_requisicao", None)
+    if inicio is not None:
+        duracao = time.perf_counter() - inicio
+        print(
+            f"TEMPO REQUISICAO: {request.method} {request.path} "
+            f"- {duracao:.3f}s - HTTP {response.status_code}",
+            flush=True
+        )
+    return response
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -38,6 +57,7 @@ def utility_processor():
 
 @app.route("/")
 def index():
+    inicio_index = time.perf_counter()
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
     proximo_mes = (inicio_mes.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -86,6 +106,12 @@ def index():
             "15D": contar_regiao(hoje, hoje + timedelta(days=14)),
             "Mês": contar_regiao(inicio_mes, fim_mes),
         }
+
+    print(
+        f"TEMPO INTERNO INDEX (consultas + montagem da página): "
+        f"{time.perf_counter() - inicio_index:.3f}s",
+        flush=True
+    )
 
     return render_template(
         "index.html",
@@ -416,4 +442,3 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
