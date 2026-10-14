@@ -795,10 +795,6 @@ def api_servicos():
         row["regiao"] = regioes_por_municipio.get(row.get("cidade"), row.get("regiao", ""))
     return jsonify(rows)
 
-@app.route("/health")
-def health():
-    return "OK", 200
-
 #if __name__ == "__main__":
 #    app.run(host="0.0.0.0", port=5000, debug=True)
 
