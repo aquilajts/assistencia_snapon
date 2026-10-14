@@ -1,28 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, g
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+import json
 import os
-import time
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
 app = Flask(__name__)
-
-
-@app.before_request
-def registrar_inicio_requisicao():
-    g.inicio_requisicao = time.perf_counter()
-
-
-@app.after_request
-def registrar_tempo_requisicao(response):
-    inicio = getattr(g, "inicio_requisicao", None)
-    if inicio is not None:
-        duracao = time.perf_counter() - inicio
-        print(
-            f"TEMPO REQUISICAO: {request.method} {request.path} "
-            f"- {duracao:.3f}s - HTTP {response.status_code}",
-            flush=True
-        )
-    return response
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -40,6 +22,14 @@ REGIOES_ES = [
     "Sul",
     "Sul / Caparaó",
 ]
+STATUS_SERVICO = [
+    "A confirmar",
+    "Agendado",
+    "Finalizado Bling",
+    "Concluído",
+    "Problema / Retorno necessário",
+    "Rascunho",
+]
 
 
 def carregar_municipios():
@@ -50,6 +40,305 @@ def carregar_municipios():
     return response.data
 
 
+def ler_colaboradores_form():
+    colaboradores = [
+        nome.strip()
+        for nome in request.form.getlist("colaboradores")
+        if nome.strip()
+    ]
+    if len(colaboradores) > 4:
+        raise ValueError("É permitido informar no máximo 4 colaboradores.")
+    return colaboradores
+
+
+def carregar_catalogo_equipamentos():
+    response = supabase.table("3_ata_equipamentos") \
+        .select("id, categoria, equipamento, tipo, ferramentas") \
+        .eq("ativo", True) \
+        .order("categoria") \
+        .order("equipamento") \
+        .execute()
+    return response.data
+
+
+def carregar_categorias_equipamentos():
+    response = supabase.table("3_ata_categorias_equipamentos") \
+        .select("id, nome") \
+        .order("nome") \
+        .execute()
+    return response.data
+
+
+def ler_equipamentos_form(catalogo):
+    try:
+        enviados = json.loads(request.form.get("equipamentos_json", "[]"))
+    except json.JSONDecodeError as erro:
+        raise ValueError("Não foi possível ler os equipamentos informados.") from erro
+
+    if not isinstance(enviados, list) or len(enviados) > 6:
+        raise ValueError("É permitido adicionar no máximo 6 equipamentos.")
+
+    por_id = {str(item["id"]): item for item in catalogo}
+    equipamentos = []
+    for enviado in enviados:
+        if not isinstance(enviado, dict):
+            raise ValueError("Um dos equipamentos informados é inválido.")
+
+        catalogo_id = str(enviado.get("catalogo_id", ""))
+        item_catalogo = por_id.get(catalogo_id)
+        if not item_catalogo:
+            raise ValueError("Selecione um equipamento válido do catálogo.")
+
+        ferramentas_enviadas = enviado.get("ferramentas", [])
+        if not isinstance(ferramentas_enviadas, list):
+            raise ValueError("A lista de ferramentas de um equipamento é inválida.")
+        ferramentas_por_nome = {
+            item.get("nome", "").strip(): item.get("levado") is True
+            for item in ferramentas_enviadas
+            if isinstance(item, dict) and isinstance(item.get("nome"), str)
+        }
+
+        if item_catalogo["tipo"] == "Montagem":
+            nomes_ferramentas = item_catalogo.get("ferramentas") or []
+        else:
+            nomes_ferramentas = [
+                nome for nome in ferramentas_por_nome
+                if nome
+            ]
+
+        ferramentas = []
+        for nome in nomes_ferramentas:
+            if not isinstance(nome, str) or not nome.strip():
+                continue
+            nome = nome.strip()
+            ferramentas.append({
+                "nome": nome,
+                "levado": ferramentas_por_nome.get(nome, False),
+            })
+
+        equipamentos.append({
+            "catalogo_id": item_catalogo["id"],
+            "categoria": item_catalogo["categoria"],
+            "equipamento": item_catalogo["equipamento"],
+            "tipo": item_catalogo["tipo"],
+            "ferramentas": ferramentas,
+        })
+
+    return equipamentos
+
+
+@app.route("/equipamentos", methods=["GET", "POST"])
+def gerenciar_equipamentos():
+    categorias = carregar_categorias_equipamentos()
+    catalogo = supabase.table("3_ata_equipamentos") \
+        .select("id, categoria, equipamento, tipo, ferramentas, ativo") \
+        .order("categoria") \
+        .order("equipamento") \
+        .execute().data
+
+    def render_catalog(erro=None, mensagem=None, equipamento_id=None):
+        selecionado = next(
+            (
+                item for item in catalogo
+                if str(item["id"]) == str(equipamento_id)
+            ),
+            None,
+        )
+        return render_template(
+            "equipamentos.html",
+            categorias=categorias,
+            catalogo=catalogo,
+            equipamento_selecionado=selecionado,
+            erro=erro,
+            mensagem=mensagem,
+        )
+
+    if request.method == "GET":
+        return render_catalog(
+            mensagem=request.args.get("mensagem"),
+            equipamento_id=request.args.get("equipamento_id"),
+        )
+
+    acao = request.form.get("acao", "")
+    if acao == "criar_categoria":
+        nome = request.form.get("categoria", "").strip()
+        if not nome or len(nome) > 80:
+            return render_catalog("Informe uma categoria com até 80 caracteres.")
+        if any(item["nome"].casefold() == nome.casefold() for item in categorias):
+            return render_catalog("Essa categoria já está cadastrada.")
+        supabase.table("3_ata_categorias_equipamentos").insert({
+            "nome": nome,
+        }).execute()
+        return redirect(url_for(
+            "gerenciar_equipamentos",
+            mensagem="Categoria cadastrada.",
+        ))
+
+    if acao == "criar_equipamento":
+        categoria = request.form.get("categoria", "").strip()
+        nome = request.form.get("equipamento", "").strip()
+        categorias_existentes = {item["nome"] for item in categorias}
+        if categoria not in categorias_existentes:
+            return render_catalog("Selecione uma categoria válida.")
+        if not nome or len(nome) > 120:
+            return render_catalog("Informe um equipamento com até 120 caracteres.")
+        if any(
+            item["categoria"] == categoria
+            and item["equipamento"].casefold() == nome.casefold()
+            for item in catalogo
+        ):
+            return render_catalog("Esse equipamento já está cadastrado nessa categoria.")
+        response = supabase.table("3_ata_equipamentos").insert({
+            "categoria": categoria,
+            "equipamento": nome,
+            "tipo": "Montagem",
+            "ferramentas": [],
+            "ativo": True,
+        }).select("id").execute()
+        return redirect(url_for(
+            "gerenciar_equipamentos",
+            mensagem="Equipamento cadastrado.",
+            equipamento_id=response.data[0]["id"],
+        ))
+
+    if acao in {"salvar_ferramentas", "copiar_ferramentas", "excluir_equipamento"}:
+        equipamento_id = request.form.get("equipamento_id", "")
+        equipamento = next(
+            (item for item in catalogo if str(item["id"]) == equipamento_id),
+            None,
+        )
+        if not equipamento:
+            return render_catalog("Selecione um equipamento válido.")
+
+        if acao == "salvar_ferramentas":
+            ferramentas = [
+                nome.strip()
+                for nome in request.form.getlist("ferramentas")
+                if nome.strip()
+            ]
+            if len(ferramentas) > 30:
+                return render_catalog(
+                    "É permitido cadastrar no máximo 30 ferramentas por equipamento.",
+                    equipamento_id=equipamento_id,
+                )
+            if any(len(nome) > 120 for nome in ferramentas):
+                return render_catalog(
+                    "Cada ferramenta pode ter até 120 caracteres.",
+                    equipamento_id=equipamento_id,
+                )
+            nomes_unicos = {nome.casefold() for nome in ferramentas}
+            if len(nomes_unicos) != len(ferramentas):
+                return render_catalog(
+                    "Remova ferramentas repetidas antes de salvar.",
+                    equipamento_id=equipamento_id,
+                )
+            supabase.table("3_ata_equipamentos").update({
+                "ferramentas": ferramentas,
+            }).eq("id", equipamento_id).execute()
+            return redirect(url_for(
+                "gerenciar_equipamentos",
+                mensagem="Ferramentas salvas.",
+                equipamento_id=equipamento_id,
+            ))
+
+        if acao == "copiar_ferramentas":
+            origem_id = request.form.get("origem_id", "")
+            origem = next(
+                (item for item in catalogo if str(item["id"]) == origem_id),
+                None,
+            )
+            if not origem or origem["id"] == equipamento["id"]:
+                return render_catalog(
+                    "Selecione outro equipamento como origem.",
+                    equipamento_id=equipamento_id,
+                )
+            supabase.table("3_ata_equipamentos").update({
+                "ferramentas": origem.get("ferramentas") or [],
+            }).eq("id", equipamento_id).execute()
+            return redirect(url_for(
+                "gerenciar_equipamentos",
+                mensagem=f"Ferramentas copiadas de {origem['equipamento']}.",
+                equipamento_id=equipamento_id,
+            ))
+
+        supabase.table("3_ata_equipamentos") \
+            .delete() \
+            .eq("id", equipamento_id) \
+            .execute()
+        return redirect(url_for(
+            "gerenciar_equipamentos",
+            mensagem="Equipamento excluído.",
+        ))
+
+    return render_catalog("Ação inválida.")
+
+
+def carregar_equipamentos_servico(servico_id):
+    response = supabase.table("3_ata_servico_equipamentos") \
+        .select("*") \
+        .eq("servico_id", servico_id) \
+        .order("ordem") \
+        .execute()
+    equipamentos = response.data
+    ids = [item["id"] for item in equipamentos]
+    if not ids:
+        return []
+
+    ferramentas_response = supabase.table("3_ata_servico_ferramentas") \
+        .select("*") \
+        .in_("servico_equipamento_id", ids) \
+        .order("ordem") \
+        .execute()
+    ferramentas_por_equipamento = {}
+    for ferramenta in ferramentas_response.data:
+        ferramentas_por_equipamento.setdefault(
+            ferramenta["servico_equipamento_id"], []
+        ).append({
+            "nome": ferramenta["ferramenta"],
+            "levado": ferramenta["levado"],
+        })
+
+    for equipamento in equipamentos:
+        equipamento["ferramentas"] = ferramentas_por_equipamento.get(
+            equipamento["id"], []
+        )
+        equipamento["catalogo_id"] = equipamento["equipamento_id"]
+    return equipamentos
+
+
+def salvar_equipamentos_servico(servico_id, equipamentos):
+    supabase.table("3_ata_servico_equipamentos") \
+        .delete() \
+        .eq("servico_id", servico_id) \
+        .execute()
+
+    for ordem, equipamento in enumerate(equipamentos, start=1):
+        response = supabase.table("3_ata_servico_equipamentos").insert({
+            "servico_id": servico_id,
+            "equipamento_id": equipamento["catalogo_id"],
+            "categoria": equipamento["categoria"],
+            "equipamento": equipamento["equipamento"],
+            "tipo": equipamento["tipo"],
+            "ordem": ordem,
+        }).select("id").execute()
+        servico_equipamento_id = response.data[0]["id"]
+        ferramentas = [
+            {
+                "servico_equipamento_id": servico_equipamento_id,
+                "ferramenta": ferramenta["nome"],
+                "levado": ferramenta["levado"],
+                "ordem": ordem_ferramenta,
+            }
+            for ordem_ferramenta, ferramenta in enumerate(
+                equipamento["ferramentas"], start=1
+            )
+        ]
+        if ferramentas:
+            supabase.table("3_ata_servico_ferramentas") \
+                .insert(ferramentas) \
+                .execute()
+
+
 @app.context_processor
 def utility_processor():
     return {"today": date.today().isoformat()}
@@ -57,7 +346,6 @@ def utility_processor():
 
 @app.route("/")
 def index():
-    inicio_index = time.perf_counter()
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
     proximo_mes = (inicio_mes.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -86,32 +374,34 @@ def index():
         for regiao in REGIOES_ES
     }
 
+    def contar_pendentes(data_inicio, data_fim, cidades=None):
+        consulta = supabase.table("3_ata_servicos") \
+            .select("id", count="exact")
+        if cidades is not None:
+            consulta = consulta.in_("cidade", cidades)
+        return consulta \
+            .gte("data_prevista", data_inicio.isoformat()) \
+            .lte("data_prevista", data_fim.isoformat()) \
+            .neq("status", "Finalizado Bling") \
+            .execute().count or 0
+
     regioes = {}
     for regiao, cidades in cidades_por_regiao.items():
         if not cidades:
             regioes[regiao] = {"7D": 0, "15D": 0, "Mês": 0}
             continue
 
-        def contar_regiao(data_inicio, data_fim):
-            return supabase.table("3_ata_servicos") \
-                .select("id", count="exact") \
-                .in_("cidade", cidades) \
-                .gte("data_prevista", data_inicio.isoformat()) \
-                .lte("data_prevista", data_fim.isoformat()) \
-                .neq("status", "Finalizado Bling") \
-                .execute().count or 0
-
         regioes[regiao] = {
-            "7D": contar_regiao(hoje, hoje + timedelta(days=6)),
-            "15D": contar_regiao(hoje, hoje + timedelta(days=14)),
-            "Mês": contar_regiao(inicio_mes, fim_mes),
+            "7D": contar_pendentes(hoje, hoje + timedelta(days=6), cidades),
+            "15D": contar_pendentes(hoje, hoje + timedelta(days=14), cidades),
+            "Mês": contar_pendentes(inicio_mes, fim_mes, cidades),
         }
 
-    print(
-        f"TEMPO INTERNO INDEX (consultas + montagem da página): "
-        f"{time.perf_counter() - inicio_index:.3f}s",
-        flush=True
-    )
+    regioes["Total"] = {
+        "7D": contar_pendentes(hoje, hoje + timedelta(days=6)),
+        "15D": contar_pendentes(hoje, hoje + timedelta(days=14)),
+        "Mês": contar_pendentes(inicio_mes, fim_mes),
+    }
 
     return render_template(
         "index.html",
@@ -149,40 +439,86 @@ def servicos():
 def novo_servico():
     municipios = carregar_municipios()
     regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
+    catalogo_equipamentos = carregar_catalogo_equipamentos()
+
+    def render_form(
+        erro,
+        equipamentos,
+        cidade="",
+        colaboradores=None,
+        status_selecionado="A confirmar",
+    ):
+        return render_template(
+            "novo_servico.html",
+            erro=erro,
+            municipios=municipios,
+            cidade_selecionada=cidade,
+            regiao_selecionada=regioes_por_municipio.get(cidade, ""),
+            catalogo_equipamentos=catalogo_equipamentos,
+            equipamentos=equipamentos,
+            colaboradores=(colaboradores or [])[:4],
+            status_selecionado=status_selecionado,
+            status_opcoes=STATUS_SERVICO,
+        )
+
     if request.method == "POST":
         tipo = request.form.get("tipo", "Assistência Técnica")
         cliente = request.form.get("cliente", "").strip()
         cidade = request.form.get("cidade", "").strip()
+        status = request.form.get("status", "A confirmar")
+        try:
+            colaboradores = ler_colaboradores_form()
+            erro_colaboradores = None
+        except ValueError as erro:
+            colaboradores = [
+                nome.strip()
+                for nome in request.form.getlist("colaboradores")
+                if nome.strip()
+            ][:4]
+            erro_colaboradores = str(erro)
+        try:
+            equipamentos = ler_equipamentos_form(catalogo_equipamentos)
+            erro_equipamentos = None
+        except ValueError as erro:
+            equipamentos = []
+            erro_equipamentos = str(erro)
+
         if tipo not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
-            return render_template(
-                "novo_servico.html",
-                erro="Tipo de serviço inválido.",
-                municipios=municipios,
-                cidade_selecionada=cidade,
-                regiao_selecionada=regioes_por_municipio.get(cidade, ""),
+            return render_form(
+                "Tipo de serviço inválido.", equipamentos, cidade,
+                colaboradores, status,
             )
+        if status not in STATUS_SERVICO:
+            return render_form(
+                "Status de serviço inválido.", equipamentos, cidade,
+                colaboradores, status,
+            )
+        if erro_colaboradores:
+            return render_form(
+                erro_colaboradores, equipamentos, cidade,
+                colaboradores, status,
+            )
+        if erro_equipamentos:
+            return render_form(
+                erro_equipamentos, equipamentos, cidade,
+                colaboradores, status,
+            )
+
         telefone = request.form.get("telefone", "").strip()
         endereco = request.form.get("endereco", "").strip()
         data_prevista = request.form.get("data_prevista", "")
         observacoes = request.form.get("observacoes", "").strip()
-        status = "Rascunho" if tipo == "Rascunho" else "A confirmar"
 
         if not cliente:
-            return render_template(
-                "novo_servico.html",
-                erro="Informe o cliente/empresa.",
-                municipios=municipios,
-                cidade_selecionada=cidade,
-                regiao_selecionada=regioes_por_municipio.get(cidade, ""),
+            return render_form(
+                "Informe o cliente/empresa.", equipamentos, cidade,
+                colaboradores, status,
             )
         regiao = regioes_por_municipio.get(cidade)
         if not regiao:
-            return render_template(
-                "novo_servico.html",
-                erro="Selecione uma cidade válida da lista.",
-                municipios=municipios,
-                cidade_selecionada=cidade,
-                regiao_selecionada="",
+            return render_form(
+                "Selecione uma cidade válida da lista.", equipamentos, cidade,
+                colaboradores, status,
             )
 
         cur = supabase.table("3_ata_servicos").insert({
@@ -194,11 +530,13 @@ def novo_servico():
             "endereco": endereco,
             "data_prevista": data_prevista or None,
             "observacoes": observacoes,
+            "colaboradores": colaboradores,
             "status": status,
             "criado_em": datetime.now().isoformat(timespec="seconds")
         }).execute()
         
         servico_id = cur.data[0]["id"]
+        salvar_equipamentos_servico(servico_id, equipamentos)
         
         if observacoes:
             supabase.table("3_ata_historico").insert({
@@ -208,13 +546,7 @@ def novo_servico():
             }).execute()
         return redirect(url_for("detalhes", servico_id=servico_id))
 
-    return render_template(
-        "novo_servico.html",
-        erro=None,
-        municipios=municipios,
-        cidade_selecionada="",
-        regiao_selecionada="",
-    )
+    return render_form(None, [], status_selecionado="A confirmar")
 
 
 @app.route("/servicos/<int:servico_id>/editar", methods=["GET", "POST"])
@@ -233,6 +565,8 @@ def editar_servico(servico_id):
     data_prevista_input = str(servico.get("data_prevista") or "")[:10]
     municipios = carregar_municipios()
     regioes_por_municipio = {item["municipio"]: item["regiao"] for item in municipios}
+    catalogo_equipamentos = carregar_catalogo_equipamentos()
+    equipamentos = carregar_equipamentos_servico(servico_id)
 
     if request.method == "POST":
         dados = {
@@ -244,9 +578,24 @@ def editar_servico(servico_id):
             "data_prevista": request.form.get("data_prevista", ""),
             "observacoes": request.form.get("observacoes", "").strip(),
         }
+        try:
+            dados["colaboradores"] = ler_colaboradores_form()
+        except ValueError as erro_form:
+            erro = str(erro_form)
+            dados["colaboradores"] = [
+                nome.strip()
+                for nome in request.form.getlist("colaboradores")
+                if nome.strip()
+            ][:4]
         data_prevista_input = dados["data_prevista"]
+        try:
+            equipamentos = ler_equipamentos_form(catalogo_equipamentos)
+        except ValueError as erro_form:
+            erro = erro or str(erro_form)
 
-        if dados["tipo"] not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
+        if erro:
+            servico.update(dados)
+        elif dados["tipo"] not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
             erro = "Tipo de serviço inválido."
             servico.update(dados)
         elif not dados["cliente"]:
@@ -263,6 +612,7 @@ def editar_servico(servico_id):
                 dados["status"] = "A confirmar"
             dados["data_prevista"] = dados["data_prevista"] or None
             supabase.table("3_ata_servicos").update(dados).eq("id", servico_id).execute()
+            salvar_equipamentos_servico(servico_id, equipamentos)
             return redirect(url_for("detalhes", servico_id=servico_id))
 
     return render_template(
@@ -271,6 +621,9 @@ def editar_servico(servico_id):
         data_prevista_input=data_prevista_input,
         municipios=municipios,
         regiao_selecionada=regioes_por_municipio.get(servico.get("cidade"), ""),
+        catalogo_equipamentos=catalogo_equipamentos,
+        equipamentos=equipamentos,
+        colaboradores=(servico.get("colaboradores") or [])[:4],
         erro=erro,
     )
 
@@ -335,7 +688,14 @@ def detalhes(servico_id):
 @app.route("/servicos/<int:servico_id>/status", methods=["POST"])
 def alterar_status(servico_id):
     status = request.form.get("status", "")
-    permitidos = ["Rascunho", "A confirmar", "Agendado", "Finalizado Bling", "Concluído", "Problema / Retorno necessário"]
+    permitidos = [
+        "Rascunho",
+        "A confirmar",
+        "Agendado",
+        "Finalizado Bling",
+        "Concluído",
+        "Problema / Retorno necessário",
+    ]
     if status not in permitidos:
         return redirect(url_for("detalhes", servico_id=servico_id))
 
@@ -431,13 +791,10 @@ def api_servicos():
     for row in rows:
         row["regiao"] = regioes_por_municipio.get(row.get("cidade"), row.get("regiao", ""))
     return jsonify(rows)
-    
-@app.route("/health")
-def health():
-    return "OK", 200
 
 #if __name__ == "__main__":
 #    app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
