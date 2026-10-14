@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Equipamentos — Assistência Técnica{% endblock %}
+{% block content %}
+<div class="page-head equipment-admin-head">
+    <div>
+        <p class="eyebrow">CATÁLOGO</p>
+        <h1>Categorias e equipamentos</h1>
+        <p class="muted">Cadastre equipamentos e mantenha até 30 ferramentas para cada um.</p>
+    </div>
+    <a class="button ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+</div>
+
+{% if erro %}<div class="alert" role="alert">{{ erro }}</div>{% endif %}
+{% if mensagem %}<div class="notice" role="status">{{ mensagem }}</div>{% endif %}
+
+<div class="equipment-admin-grid">
+    <section class="panel">
+        <h2>Nova categoria</h2>
+        <form method="post" class="catalog-form">
+            <input type="hidden" name="acao" value="criar_categoria">
+            <label for="new-category">Nome da categoria</label>
+            <input id="new-category" name="categoria" maxlength="80" required>
+            <button class="button primary" type="submit">Criar categoria</button>
+        </form>
+
+        <hr class="catalog-divider">
+
+        <h2>Novo equipamento</h2>
+        <form method="post" class="catalog-form">
+            <input type="hidden" name="acao" value="criar_equipamento">
+            <label for="new-equipment-category">Categoria</label>
+            <select id="new-equipment-category" name="categoria" required>
+                <option value="">Selecione uma categoria</option>
+                {% for categoria in categorias %}
+                <option value="{{ categoria['nome'] }}">{{ categoria['nome'] }}</option>
+                {% endfor %}
+            </select>
+            <label for="new-equipment">Nome do equipamento</label>
+            <input id="new-equipment" name="equipamento" maxlength="120" required>
+            <button class="button primary" type="submit" {% if not categorias %}disabled{% endif %}>Adicionar equipamento</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <p class="eyebrow">ITENS CADASTRADOS</p>
+                <h2>Equipamentos</h2>
+            </div>
+            <span class="muted small">{{ catalogo|length }} itens</span>
+        </div>
+        <label for="catalog-category-filter">Categoria</label>
+        <select id="catalog-category-filter" class="catalog-category-filter">
+            <option value="">Todas as categorias</option>
+            {% for categoria in categorias %}
+            <option
+                value="{{ categoria['nome'] }}"
+                {% if equipamento_selecionado and equipamento_selecionado['categoria'] == categoria['nome'] %}selected{% endif %}
+            >{{ categoria['nome'] }}</option>
+            {% endfor %}
+        </select>
+        {% if catalogo %}
+        <div class="catalog-equipment-list">
+            {% for item in catalogo %}
+            <a
+                class="catalog-equipment-link{% if equipamento_selecionado and item['id'] == equipamento_selecionado['id'] %} selected{% endif %}"
+                href="{{ url_for('gerenciar_equipamentos', equipamento_id=item['id']) }}"
+                data-category="{{ item['categoria'] }}"
+            >
+                <span><b>{{ item['equipamento'] }}</b><small>{{ item['categoria'] }}</small></span>
+                <small>{{ item['ferramentas']|length }}/30 ferramentas</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Ainda não há equipamentos cadastrados.</p>
+        {% endif %}
+    </section>
+</div>
+
+{% if equipamento_selecionado %}
+<section class="panel catalog-tools-panel" id="equipment-catalog-editor">
+    <div class="panel-head">
+        <div>
+            <p class="eyebrow">{{ equipamento_selecionado['categoria'] }}</p>
+            <h2>{{ equipamento_selecionado['equipamento'] }} — ferramentas</h2>
+        </div>
+        <span class="muted small"><span id="tool-count">{{ equipamento_selecionado['ferramentas']|length }}</span>/30</span>
+    </div>
+
+    <form method="post" id="catalog-tools-form">
+        <input type="hidden" name="acao" value="salvar_ferramentas">
+        <input type="hidden" name="equipamento_id" value="{{ equipamento_selecionado['id'] }}">
+        <div id="catalog-tools-list">
+            {% for ferramenta in equipamento_selecionado['ferramentas'] %}
+            <div class="catalog-tool-row">
+                <input type="text" name="ferramentas" value="{{ ferramenta }}" maxlength="120" placeholder="Nome da ferramenta">
+                <button class="button ghost remove-tool" type="button">Excluir ferramenta</button>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="catalog-tool-actions">
+            <button class="button ghost" type="button" id="add-catalog-tool">Adicionar ferramenta</button>
+            <button class="button primary" type="submit">Salvar ferramentas</button>
+        </div>
+    </form>
+
+    <div class="catalog-secondary-actions">
+        <form method="post" class="catalog-copy-form">
+            <input type="hidden" name="acao" value="copiar_ferramentas">
+            <input type="hidden" name="equipamento_id" value="{{ equipamento_selecionado['id'] }}">
+            <label for="copy-tools-from">Copiar ferramentas de outro equipamento</label>
+            <select id="copy-tools-from" name="origem_id" required>
+                <option value="">Selecione o equipamento de origem</option>
+                {% for item in catalogo if item['id'] != equipamento_selecionado['id'] %}
+                <option value="{{ item['id'] }}">{{ item['categoria'] }} — {{ item['equipamento'] }} ({{ item['ferramentas']|length }})</option>
+                {% endfor %}
+            </select>
+            <button class="button ghost" type="submit">Copiar ferramentas</button>
+        </form>
+        <form method="post" class="catalog-delete-form" data-confirm-delete="{{ equipamento_selecionado['equipamento'] }}">
+            <input type="hidden" name="acao" value="excluir_equipamento">
+            <input type="hidden" name="equipamento_id" value="{{ equipamento_selecionado['id'] }}">
+            <button class="button danger" type="submit">Excluir equipamento</button>
+        </form>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

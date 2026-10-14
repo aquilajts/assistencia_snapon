@@ -1,0 +1,23 @@
+<section class="collaborators-section" id="collaborators-section">
+    <div class="collaborators-section-head">
+        <div>
+            <label>Colaboradores do serviço</label>
+            <p class="muted small">Informe até 4 colaboradores que prestarão o serviço.</p>
+        </div>
+        <button class="button ghost" type="button" id="add-collaborator">Adicionar colaborador</button>
+    </div>
+    <div id="collaborator-list">
+        {% for nome in colaboradores %}
+        <div class="collaborator-row">
+            <input type="text" name="colaboradores" value="{{ nome }}" maxlength="120" placeholder="Nome do colaborador">
+            <button class="button ghost remove-collaborator" type="button">Remover</button>
+        </div>
+        {% endfor %}
+        {% if not colaboradores %}
+        <div class="collaborator-row">
+            <input type="text" name="colaboradores" maxlength="120" placeholder="Nome do colaborador">
+            <button class="button ghost remove-collaborator" type="button">Remover</button>
+        </div>
+        {% endif %}
+    </div>
+</section>

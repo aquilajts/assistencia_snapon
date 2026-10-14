@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Serviço #{{ servico['id'] }}{% endblock %}
+{% block content %}
+
+<div class="page-head service-detail-head">
+    <div class="service-heading-row">
+        <p class="eyebrow">SERVIÇO #{{ "%05d"|format(servico['id']) }}</p>
+        <form method="post"
+              id="statusForm"
+              action="{{ url_for('alterar_status', servico_id=servico['id']) }}"
+              class="status-select-form">
+            <select name="status" aria-label="Status do serviço">
+                {% for st in [
+                    "Rascunho",
+                    "A confirmar",
+                    "Agendado",
+                    "Finalizado Bling",
+                    "Concluído",
+                    "Problema / Retorno necessário"
+                ] %}
+                <option {% if st == servico['status'] %}selected{% endif %}>
+                    {{ st }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <div class="service-title-row">
+        <div>
+        <h1>{{ servico['cliente'] }}</h1>
+        <p class="muted">{{ servico['tipo'] }} · {{ servico['regiao'] }}</p>
+        </div>
+        <div class="service-actions">
+            <a class="button ghost compact-button" href="{{ url_for('editar_servico', servico_id=servico['id']) }}">Editar</a>
+            <button class="button primary compact-button" type="submit" form="statusForm">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<div class="detail-grid">
+
+    <section class="panel">
+        <h2>Informações</h2>
+
+        <dl>
+            <div>
+                <dt>Tipo</dt>
+                <dd>{{ servico['tipo'] }}</dd>
+            </div>
+
+            <div>
+                <dt>Região</dt>
+                <dd>{{ servico['regiao'] }}</dd>
+            </div>
+
+            <div>
+                <dt>Cidade</dt>
+                <dd>{{ servico.get('cidade') or 'Não informada' }}</dd>
+            </div>
+
+            <div>
+                <dt>Telefone</dt>
+                <dd>
+                    {% if telefone_whatsapp %}
+                    <a href="http://wa.me/{{ telefone_whatsapp }}">{{ servico['telefone'] }}</a>
+                    {% else %}
+                    Não informado
+                    {% endif %}
+                </dd>
+            </div>
+
+            <div>
+                <dt>Colaboradores</dt>
+                <dd>{{ (servico.get('colaboradores') or [])|join(', ') or 'Não informados' }}</dd>
+            </div>
+
+            <div>
+                <dt>Data prevista</dt>
+                <dd>{{ data_prevista_formatada or 'Não definida' }}</dd>
+            </div>
+
+            <div>
+                <dt>Endereço</dt>
+                <dd>
+                    {% if servico['endereco'] %}
+                    <a href="https://www.google.com/maps/search/?api=1&amp;query={{ servico['endereco']|urlencode }}" target="_blank" rel="noopener noreferrer">{{ servico['endereco'] }}</a>
+                    {% else %}
+                    Não informado
+                    {% endif %}
+                </dd>
+            </div>
+
+            <div>
+                <dt>Cadastro</dt>
+                <dd>{{ criado_em_formatado or 'Não informado' }}</dd>
+            </div>
+
+            {% if servico['data_conclusao'] %}
+            <div>
+                <dt>Conclusão</dt>
+                <dd>{{ servico['data_conclusao'] }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+    </section>
+
+</div>
+
+<section class="panel">
+    <h2>Observações do atendimento</h2>
+
+    {% if servico['observacoes'] %}
+    <div class="initial-note">
+        <b>Observação inicial</b>
+        <p>{{ servico['observacoes'] }}</p>
+    </div>
+    {% endif %}
+
+    <div class="timeline">
+        {% for h in historico %}
+        <article>
+            <time>{{ h['criado_em_formatado'] }}</time>
+            <p>{{ h['texto'] }}</p>
+        </article>
+        {% else %}
+        <p class="muted">Nenhum registro de atendimento ainda.</p>
+        {% endfor %}
+    </div>
+
+    <form method="post"
+          action="{{ url_for('adicionar_observacao', servico_id=servico['id']) }}"
+          class="note-form">
+
+        <textarea
+            name="texto"
+            rows="3"
+            placeholder="Registrar o que aconteceu no atendimento..."></textarea>
+
+        <button class="button primary" type="submit">
+            Adicionar observação
+        </button>
+    </form>
+</section>
+
+<section class="panel checklist">
+    <h2>Checklist de conclusão</h2>
+
+    <label>
+        <input type="checkbox"
+               name="foto_servico"
+               form="statusForm"
+               {% if servico.get('foto_servico') %}checked{% endif %}>
+        Foto do serviço
+    </label>
+
+    <label>
+        <input type="checkbox"
+               name="assinatura_cliente"
+               form="statusForm"
+               {% if servico.get('assinatura_cliente') %}checked{% endif %}>
+        Assinatura do cliente
+    </label>
+
+    <label>
+        <input type="checkbox"
+               name="epi_utilizado"
+               form="statusForm"
+               {% if servico.get('epi_utilizado') %}checked{% endif %}>
+        EPI utilizado
+    </label>
+
+    <p class="muted small">
+        Marque os itens e clique em “Salvar” para registrar o checklist.
+        Este checklist registra apenas a confirmação; não envia foto nem captura assinatura digital.
+    </p>
+</section>
+
+<section class="panel danger-panel">
+    <h2>Excluir serviço</h2>
+
+    <p class="muted">
+        Esta ação é permanente e excluirá o serviço e todo o seu histórico.
+    </p>
+
+    <form method="post"
+          action="{{ url_for('excluir_servico', servico_id=servico['id']) }}"
+          class="delete-form"
+          onsubmit="return confirmarExclusao();">
+
+        <label for="nome_confirmacao">
+            Digite exatamente o nome do cliente/empresa para confirmar:
+        </label>
+
+        <input
+            id="nome_confirmacao"
+            name="nome_confirmacao"
+            type="text"
+            data-nome-cliente="{{ servico['cliente']|e }}"
+            placeholder="{{ servico['cliente'] }}"
+            autocomplete="off"
+            required>
+
+        <button class="button danger" type="submit">
+            🗑️ Excluir serviço permanentemente
+        </button>
+    </form>
+</section>
+
+<script>
+function confirmarExclusao() {
+    const campo = document.getElementById("nome_confirmacao");
+    const nomeCliente = campo.dataset.nomeCliente;
+
+    if (campo.value !== nomeCliente) {
+        alert("O nome digitado não corresponde exatamente ao cliente/empresa.");
+        return false;
+    }
+
+    return confirm(
+        "ATENÇÃO!\n\n" +
+        "Este serviço e todo o histórico serão excluídos permanentemente.\n\n" +
+        "Deseja realmente continuar?"
+    );
+}
+</script>
+
+{% endblock %}

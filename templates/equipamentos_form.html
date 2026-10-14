@@ -1,0 +1,62 @@
+<section class="equipment-section" id="equipment-section">
+    <div class="equipment-section-head">
+        <div>
+            <label>Equipamentos e ferramentas</label>
+            <p class="muted small">Adicione até 6 equipamentos ao serviço.</p>
+        </div>
+        <button
+            class="button ghost"
+            type="button"
+            id="add-equipment"
+            {% if not catalogo_equipamentos %}disabled{% endif %}
+        >Adicionar equipamento</button>
+    </div>
+    {% if not catalogo_equipamentos %}
+    <p class="muted small">O catálogo ainda não tem equipamentos ativos cadastrados no Supabase.</p>
+    {% endif %}
+    <div id="equipment-list" class="equipment-list"></div>
+    <input
+        type="hidden"
+        id="equipamentos-json"
+        name="equipamentos_json"
+        value="{{ equipamentos|tojson|forceescape }}"
+    >
+    <script type="application/json" id="catalogo-equipamentos">{{ catalogo_equipamentos|tojson }}</script>
+
+    <dialog id="equipment-dialog" class="equipment-dialog">
+        <div class="equipment-dialog-head">
+            <div>
+                <p class="eyebrow">EQUIPAMENTO DO SERVIÇO</p>
+                <h2>Adicionar equipamento</h2>
+            </div>
+            <button class="button ghost" type="button" id="close-equipment-dialog" aria-label="Fechar">Fechar</button>
+        </div>
+        <div class="equipment-dialog-body">
+            <div>
+                <label for="equipment-category">Categoria</label>
+                <select id="equipment-category">
+                    <option value="">Selecione uma categoria</option>
+                </select>
+            </div>
+            <div>
+                <label for="equipment-choice">Equipamento</label>
+                <select id="equipment-choice" disabled>
+                    <option value="">Selecione primeiro a categoria</option>
+                </select>
+            </div>
+            <div id="service-tools-field" class="hidden">
+                <label for="service-tools">Ferramentas necessárias</label>
+                <textarea id="service-tools" rows="4" placeholder="Digite uma ferramenta por linha"></textarea>
+            </div>
+            <div id="assembly-tools-preview" class="hidden">
+                <label>Ferramentas necessárias para montagem</label>
+                <ul id="assembly-tools-list"></ul>
+            </div>
+        </div>
+        <div id="equipment-dialog-error" class="alert hidden" role="alert"></div>
+        <div class="form-footer">
+            <button class="button ghost" type="button" id="cancel-equipment">Cancelar</button>
+            <button class="button primary" type="button" id="save-equipment">Salvar equipamento</button>
+        </div>
+    </dialog>
+</section>
