@@ -49,8 +49,63 @@ dl{margin:0}dl div{display:flex;justify-content:space-between;gap:20px;padding:1
 .service-actions{flex:none}
 .compact-button{padding:9px 12px}
 .region-header{color:var(--muted);font-size:12px}
+.region-total{border-top:2px solid var(--line);font-weight:700}
 .region-counts{display:grid;grid-template-columns:repeat(3,minmax(36px,1fr));gap:12px;width:min(45%,260px);text-align:center}
 .region-counts strong{font-variant-numeric:tabular-nums}
+.equipment-section{margin:20px 0}
+.equipment-section-head,.equipment-card-head,.equipment-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.equipment-section-head>div>label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.equipment-section-head p{margin:0}
+.equipment-list{display:grid;gap:10px;margin-top:12px}
+.equipment-card{padding:15px;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.equipment-card-head h3{font-size:15px;margin:0 0 4px}
+.equipment-card-head p{margin:0}
+.equipment-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin-top:13px}
+.equipment-tools label{display:flex;align-items:center;gap:8px;margin:0;font-weight:500}
+.equipment-tools input{width:auto;margin:0;accent-color:var(--green)}
+.equipment-dialog{width:min(560px,calc(100% - 28px));max-width:560px;padding:22px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px}
+.equipment-dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}
+.equipment-dialog-head{margin-bottom:20px}
+.equipment-dialog-head .eyebrow{margin-bottom:6px}
+.equipment-dialog-head h2{font-size:20px}
+.equipment-dialog-head button{padding:8px 11px}
+.equipment-dialog-body{display:grid;gap:15px}
+.equipment-dialog-body label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
+.equipment-dialog-body ul{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.8}
+.equipment-dialog .alert{margin:15px 0 0}
+.button:disabled{opacity:.5;cursor:not-allowed}
+.collaborators-section{margin:20px 0}
+.collaborators-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.collaborators-section-head>div>label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.collaborators-section-head p{margin:0}
+.collaborator-row{display:flex;gap:8px;margin-bottom:8px}
+.collaborator-row input{flex:1;min-width:0}
+.collaborator-row .button{flex:none}
+.equipment-admin-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.equipment-admin-head p{margin:8px 0 0}
+.equipment-admin-grid{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.2fr);gap:16px}
+.catalog-form{display:grid;gap:10px;margin-top:16px}
+.catalog-form label,.catalog-copy-form label{font-size:13px;font-weight:700}
+.catalog-form .button{justify-self:start}
+.catalog-divider{border:0;border-top:1px solid var(--line);margin:22px 0}
+.catalog-equipment-list{display:grid;gap:6px;max-height:480px;overflow:auto}
+.catalog-category-filter{margin:8px 0 12px}
+.catalog-equipment-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}
+.catalog-equipment-link.selected,.catalog-equipment-link:hover{border-color:#69737e}
+.catalog-equipment-link span{display:grid;gap:4px}
+.catalog-equipment-link small{color:var(--muted);font-size:11px}
+.catalog-tools-panel{margin-top:16px}
+.catalog-tool-row{display:flex;gap:8px;margin-bottom:8px}
+.catalog-tool-row input{flex:1;min-width:0}
+.catalog-tool-row .button{flex:none}
+.catalog-tool-actions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}
+.catalog-secondary-actions{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;border-top:1px solid var(--line);padding-top:18px;margin-top:20px}
+.catalog-copy-form{display:grid;grid-template-columns:minmax(220px,1fr) auto;align-items:end;gap:10px;flex:1}
+.catalog-copy-form label{grid-column:1/-1}
+.catalog-delete-form{margin:0}
+.button.danger{background:#4a2020;color:#ffd8d6;border:1px solid #713131}
+.notice{padding:12px;background:#143323;border:1px solid #285a3e;border-radius:9px;color:#a1efbd;margin-bottom:17px}
+@media(max-width:760px){.equipment-admin-head,.catalog-secondary-actions{align-items:stretch;flex-direction:column}.equipment-admin-grid{grid-template-columns:1fr}.catalog-copy-form{grid-template-columns:1fr}.catalog-copy-form label{grid-column:auto}.catalog-tool-actions{flex-direction:column}.catalog-tool-row{align-items:stretch}.catalog-tool-row .button{padding:9px}}
 
 .danger-panel{
     border-color:#5a2929;
