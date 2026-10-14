@@ -66,6 +66,30 @@ Para adicionar o campo opcional de cidade aos serviços, execute
 [`20261009113400_add_city_to_services.sql`](./supabase/migrations/20261009113400_add_city_to_services.sql)
 no SQL Editor do projeto Supabase.
 
+Para que o formulário carregue as cidades com a chave pública do Supabase,
+execute também
+[`20261014084200_allow_public_read_regioes.sql`](./supabase/migrations/20261014084200_allow_public_read_regioes.sql)
+no SQL Editor. Essa política permite somente leitura da tabela
+`3_ata_regiao`; ela não permite cadastrar ou editar regiões pela aplicação.
+
+Para criar as tabelas do catálogo e salvar equipamentos/ferramentas em cada
+serviço, execute
+[`20261014091500_add_equipment_tracking.sql`](./supabase/migrations/20261014091500_add_equipment_tracking.sql)
+no SQL Editor. A carga inicial das categorias e equipamentos é feita pela
+migração de gerenciamento logo abaixo.
+
+Para habilitar o gerenciamento do catálogo pelo botão “Categorias e
+equipamentos” no início, execute
+[`20261014134500_manage_equipment_catalog.sql`](./supabase/migrations/20261014134500_manage_equipment_catalog.sql)
+no SQL Editor. A migração cria as categorias e equipamentos desta lista como
+Montagem, sem ferramentas cadastradas inicialmente. Depois, use a tela do
+catálogo para manter até 30 ferramentas por equipamento, copiá-las de outro
+equipamento ou removê-las individualmente.
+
+Para salvar os colaboradores que atenderão cada serviço, execute
+[`20261014130000_add_service_collaborators.sql`](./supabase/migrations/20261014130000_add_service_collaborators.sql)
+no SQL Editor. A coluna aceita até quatro nomes por serviço.
+
 ## Próximas evoluções
 
 1. Login/usuários
