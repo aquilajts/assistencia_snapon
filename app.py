@@ -4,6 +4,13 @@ import os
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
+#atualizado abaixo
+from zoneinfo import ZoneInfo 
+
+FUSO = ZoneInfo("America/Sao_Paulo") 
+
+#atualizado acima
+
 app = Flask(__name__)
 @app.route("/health") #temporario# 
 def health(): #temporario#
