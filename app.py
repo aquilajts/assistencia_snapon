@@ -12,9 +12,9 @@ FUSO = ZoneInfo("America/Sao_Paulo")
 #atualizado acima
 
 app = Flask(__name__)
-@app.route("/health") #temporario# 
-def health(): #temporario#
-    return "OK", 200 #temporario#
+@app.route("/health") 
+def health(): 
+    return "OK", 200 
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -348,70 +348,94 @@ def salvar_equipamentos_servico(servico_id, equipamentos):
                 .insert(ferramentas) \
                 .execute()
 
+#atualizado abaixo
+
+def hoje_local():
+    return datetime.now(FUSO).date()
+
 
 @app.context_processor
 def utility_processor():
-    return {"today": date.today().isoformat()}
+    return {"today": hoje_local().isoformat()}
 
+
+def carregar_resumo_servicos():
+    linhas = []
+    inicio = 0
+    tamanho = 1000
+    while True:
+        resposta = supabase.table("3_ata_servicos") \
+            .select("status, data_prevista, cidade") \
+            .range(inicio, inicio + tamanho - 1) \
+            .execute()
+        bloco = resposta.data or []
+        linhas.extend(bloco)
+        if len(bloco) < tamanho:
+            return linhas
+        inicio += tamanho
+
+#atualizado acima
+
+#alterado abaixo
 
 @app.route("/")
 def index():
-    hoje = date.today()
+    hoje = hoje_local()
     inicio_mes = hoje.replace(day=1)
     proximo_mes = (inicio_mes.replace(day=28) + timedelta(days=4)).replace(day=1)
     fim_mes = proximo_mes - timedelta(days=1)
-
-    def contar_status(status, data_inicio=None, data_fim=None):
-        consulta = supabase.table("3_ata_servicos") \
-            .select("id", count="exact") \
-            .eq("status", status)
-        if data_inicio:
-            consulta = consulta.gte("data_prevista", data_inicio.isoformat())
-        if data_fim:
-            consulta = consulta.lte("data_prevista", data_fim.isoformat())
-        return consulta.execute().count or 0
-
-    agendados_hoje = contar_status("Agendado", hoje, hoje)
-    agendados_proximos = contar_status("Agendado", hoje, hoje + timedelta(days=4))
-    confirmar_agendamento = contar_status("A confirmar", hoje, hoje + timedelta(days=9))
-    completar_os = contar_status("Rascunho")
-    finalizado_bling_mes = contar_status("Finalizado Bling", inicio_mes, fim_mes)
-    atualizar_bling = contar_status("Concluído", inicio_mes, fim_mes)
+    limite_4 = hoje + timedelta(days=4)
+    limite_7 = hoje + timedelta(days=6)
+    limite_9 = hoje + timedelta(days=9)
+    limite_15 = hoje + timedelta(days=14)
 
     municipios = carregar_municipios()
-    cidades_por_regiao = {
-        regiao: [item["municipio"] for item in municipios if item["regiao"] == regiao]
-        for regiao in REGIOES_ES
-    }
+    regiao_por_cidade = {item["municipio"]: item["regiao"] for item in municipios}
+    regioes = {regiao: {"7D": 0, "15D": 0, "Mês": 0} for regiao in list(REGIOES_ES) + ["Total"]}
 
-    def contar_pendentes(data_inicio, data_fim, cidades=None):
-        consulta = supabase.table("3_ata_servicos") \
-            .select("id", count="exact")
-        if cidades is not None:
-            consulta = consulta.in_("cidade", cidades)
-        return consulta \
-            .gte("data_prevista", data_inicio.isoformat()) \
-            .lte("data_prevista", data_fim.isoformat()) \
-            .neq("status", "Finalizado Bling") \
-            .execute().count or 0
+    agendados_hoje = agendados_proximos = 0
+    confirmar_agendamento = completar_os = 0
+    finalizado_bling_mes = atualizar_bling = 0
 
-    regioes = {}
-    for regiao, cidades in cidades_por_regiao.items():
-        if not cidades:
-            regioes[regiao] = {"7D": 0, "15D": 0, "Mês": 0}
+    for linha in carregar_resumo_servicos():
+        status = linha.get("status")
+        bruto = linha.get("data_prevista")
+        try:
+            dia = date.fromisoformat(str(bruto)[:10]) if bruto else None
+        except ValueError:
+            dia = None
+
+        if status == "Rascunho":
+            completar_os += 1
+        if dia is None:
             continue
 
-        regioes[regiao] = {
-            "7D": contar_pendentes(hoje, hoje + timedelta(days=6), cidades),
-            "15D": contar_pendentes(hoje, hoje + timedelta(days=14), cidades),
-            "Mês": contar_pendentes(inicio_mes, fim_mes, cidades),
-        }
+        if status == "Agendado" and hoje <= dia <= limite_4:
+            agendados_proximos += 1
+            if dia == hoje:
+                agendados_hoje += 1
+        if status == "A confirmar" and hoje <= dia <= limite_9:
+            confirmar_agendamento += 1
+        if inicio_mes <= dia <= fim_mes and status == "Finalizado Bling":
+            finalizado_bling_mes += 1
+        if inicio_mes <= dia <= fim_mes and status == "Concluído":
+            atualizar_bling += 1
+        if not status or status == "Finalizado Bling":
+            continue
 
-    regioes["Total"] = {
-        "7D": contar_pendentes(hoje, hoje + timedelta(days=6)),
-        "15D": contar_pendentes(hoje, hoje + timedelta(days=14)),
-        "Mês": contar_pendentes(inicio_mes, fim_mes),
-    }
+        regiao = regiao_por_cidade.get(linha.get("cidade"))
+        if hoje <= dia <= limite_7:
+            regioes["Total"]["7D"] += 1
+            if regiao in regioes:
+                regioes[regiao]["7D"] += 1
+        if hoje <= dia <= limite_15:
+            regioes["Total"]["15D"] += 1
+            if regiao in regioes:
+                regioes[regiao]["15D"] += 1
+        if inicio_mes <= dia <= fim_mes:
+            regioes["Total"]["Mês"] += 1
+            if regiao in regioes:
+                regioes[regiao]["Mês"] += 1
 
     return render_template(
         "index.html",
@@ -421,8 +445,10 @@ def index():
         completar_os=completar_os,
         finalizado_bling_mes=finalizado_bling_mes,
         atualizar_bling=atualizar_bling,
-        regioes=regioes
+        regioes=regioes,
     )
+
+#alterado acima
 
 @app.route("/servicos")
 def servicos():
