@@ -5,7 +5,7 @@ from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 
 app = Flask(__name__)
-@app.route("/health") #temporario#
+@app.route("/health") #temporario# 
 def health(): #temporario#
     return "OK", 200 #temporario#
 
