@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Motorista — Assistência Técnica{% endblock %}
+{% block content %}
+<div class="page-head equipment-admin-head">
+    <div>
+        <p class="eyebrow">CONTROLE DE VEÍCULOS</p>
+        <h1>Motorista</h1>
+        <p class="muted">Registre o veículo utilizado e o colaborador que dirigiu.</p>
+    </div>
+    <a class="button ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+</div>
+
+{% if erro %}<div class="alert" role="alert">{{ erro }}</div>{% endif %}
+{% if mensagem %}<div class="notice" role="status">{{ mensagem }}</div>{% endif %}
+
+<section class="panel">
+    <h2>Novo registro</h2>
+    <form method="post" class="catalog-form driver-form">
+        <label for="driver-date">Dia</label>
+        <input id="driver-date" type="date" name="data" value="{{ dados['data'] }}" required>
+
+        <label for="driver-vehicle">Veículo</label>
+        <select id="driver-vehicle" name="veiculo" required>
+            <option value="">Selecione um veículo</option>
+            {% for veiculo in ['Fiorino', 'Oroch', 'Outro'] %}
+            <option value="{{ veiculo }}" {% if dados['veiculo'] == veiculo %}selected{% endif %}>{{ veiculo }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="driver-name">Colaborador que dirigiu</label>
+        <input id="driver-name" name="colaborador" maxlength="120" value="{{ dados['colaborador'] }}" required>
+
+        <label for="driver-note">Observação <span class="muted">(opcional)</span></label>
+        <textarea id="driver-note" name="observacao" rows="3" maxlength="500">{{ dados['observacao'] }}</textarea>
+
+        <button class="button primary" type="submit">Salvar registro</button>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div><p class="eyebrow">HISTÓRICO</p><h2>Registros de motorista</h2></div>
+        <span class="muted small">{{ registros|length }} registros</span>
+    </div>
+    <div class="driver-record-list">
+        {% for registro in registros %}
+        <article class="driver-record">
+            <div class="driver-record-heading">
+                <h3>{{ registro['data_formatada'] }} · {{ registro['veiculo'] }}</h3>
+                <strong>{{ registro['colaborador'] }}</strong>
+            </div>
+            {% if registro.get('observacao') %}<p>{{ registro['observacao'] }}</p>{% endif %}
+        </article>
+        {% else %}
+        <p class="muted">Nenhum registro de motorista ainda.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<dialog id="driver-warning-dialog" class="equipment-dialog">
+    <div class="equipment-dialog-head">
+        <div>
+            <p class="eyebrow">LEMBRETE DE SEGURANÇA</p>
+            <h2>Antes de sair</h2>
+        </div>
+    </div>
+    <div class="equipment-dialog-body">
+        <p>Verificar condições do veiculo e motorista antes de dirigir</p>
+        <button class="button primary" type="button" data-close-driver-warning>Entendi</button>
+    </div>
+</dialog>
+{% endblock %}
