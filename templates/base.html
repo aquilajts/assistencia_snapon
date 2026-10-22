@@ -17,6 +17,10 @@
                 Serviços
             {% elif request.endpoint in ['novo_servico', 'editar_servico'] %}
                 Cadastro
+            {% elif request.endpoint == 'lista_compras' %}
+                Lista de compras
+            {% elif request.endpoint == 'motorista' %}
+                Motorista
             {% else %}
                 Serviço
             {% endif %}
