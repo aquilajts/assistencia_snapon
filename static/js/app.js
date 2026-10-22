@@ -1,4 +1,67 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const driverWarning = document.querySelector("#driver-warning-dialog");
+    if (driverWarning) {
+        driverWarning.showModal();
+        driverWarning.querySelector("[data-close-driver-warning]")
+            .addEventListener("click", () => driverWarning.close());
+        driverWarning.addEventListener("click", event => {
+            if (event.target === driverWarning) driverWarning.close();
+        });
+    }
+
+    document.querySelectorAll("[data-service-equipment-form], [data-registration-form]").forEach(form => {
+        const status = form.querySelector('[name="status"]');
+        if (!status) return;
+        const error = document.querySelector("#equipment-confirmation-error");
+        form.addEventListener("submit", event => {
+            if (status.value !== "Agendado") return;
+            let todosConfirmados;
+            if (form.matches("[data-registration-form]")) {
+                const equipamentos = JSON.parse(
+                    form.querySelector("#equipamentos-json").value || "[]"
+                );
+                todosConfirmados = equipamentos.every(equipamento =>
+                    equipamento.levado === true
+                    && equipamento.ferramentas.every(ferramenta => ferramenta.levado === true)
+                );
+            } else {
+                todosConfirmados = [...document.querySelectorAll("[data-equipment-confirmation-item]")]
+                    .every(item => item.checked);
+            }
+            if (todosConfirmados) {
+                if (error) error.classList.add("hidden");
+                return;
+            }
+            event.preventDefault();
+            if (error) {
+                error.textContent = "Marque todos os equipamentos e ferramentas antes de agendar.";
+                error.classList.remove("hidden");
+                error.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        });
+    });
+
+    const registrationForm = document.querySelector("[data-registration-form]");
+    if (registrationForm) {
+        const typeOptions = [...registrationForm.querySelectorAll('[name="tipo"]')];
+        const statusSelect = registrationForm.querySelector('[name="status"]');
+
+        function updateRegistrationStatuses() {
+            const isDraft = registrationForm.querySelector('[name="tipo"]:checked')?.value === "Rascunho";
+            [...statusSelect.options].forEach(option => {
+                const isDraftOption = option.value === "Rascunho";
+                option.hidden = isDraftOption !== isDraft;
+                option.disabled = isDraftOption !== isDraft;
+            });
+            statusSelect.value = isDraft
+                ? "Rascunho"
+                : statusSelect.value === "Rascunho" ? "A confirmar" : statusSelect.value;
+        }
+
+        typeOptions.forEach(option => option.addEventListener("change", updateRegistrationStatuses));
+        updateRegistrationStatuses();
+    }
+
     const catalogCategoryFilter = document.querySelector("#catalog-category-filter");
     if (catalogCategoryFilter) {
         const equipmentLinks = [
@@ -82,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const equipmentList = document.querySelector("#equipment-list");
         const equipmentInput = document.querySelector("#equipamentos-json");
         const addEquipmentButton = document.querySelector("#add-equipment");
+        const checkAllEquipment = document.querySelector("#check-all-equipment");
         let equipmentItems = JSON.parse(equipmentInput.value || "[]");
 
         [...new Set(catalog.map(item => item.categoria))].forEach(category => {
@@ -99,18 +163,34 @@ document.addEventListener("DOMContentLoaded", () => {
         function renderEquipmentItems() {
             equipmentList.replaceChildren();
             equipmentItems.forEach((item, equipmentIndex) => {
+                item.levado = item.levado === true;
+                item.ferramentas.forEach(tool => {
+                    tool.levado = tool.levado === true;
+                });
                 const card = document.createElement("article");
                 card.className = "equipment-card";
 
                 const heading = document.createElement("div");
                 heading.className = "equipment-card-head";
                 const title = document.createElement("div");
-                const name = document.createElement("h3");
+                const equipmentLabel = document.createElement("label");
+                equipmentLabel.className = "equipment-confirmation-item";
+                const equipmentCheckbox = document.createElement("input");
+                equipmentCheckbox.type = "checkbox";
+                equipmentCheckbox.checked = item.levado;
+                equipmentCheckbox.dataset.equipmentConfirmationItem = "";
+                equipmentCheckbox.addEventListener("change", () => {
+                    equipmentItems[equipmentIndex].levado = equipmentCheckbox.checked;
+                    updateEquipmentInput();
+                });
+                const name = document.createElement("span");
+                name.className = "equipment-name";
                 name.textContent = item.equipamento;
+                equipmentLabel.append(equipmentCheckbox, name);
                 const category = document.createElement("p");
                 category.className = "muted small";
                 category.textContent = `${item.categoria} · ${item.tipo}`;
-                title.append(name, category);
+                title.append(equipmentLabel, category);
 
                 const removeButton = document.createElement("button");
                 removeButton.type = "button";
@@ -131,10 +211,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         const checkbox = document.createElement("input");
                         checkbox.type = "checkbox";
                         checkbox.checked = tool.levado;
+                        checkbox.dataset.equipmentConfirmationItem = "";
                         checkbox.addEventListener("change", () => {
                             equipmentItems[equipmentIndex].ferramentas[toolIndex].levado =
                                 checkbox.checked;
-                            equipmentInput.value = JSON.stringify(equipmentItems);
+                            updateEquipmentInput();
                         });
                         const toolName = document.createElement("span");
                         toolName.textContent = tool.nome;
@@ -150,9 +231,31 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 equipmentList.append(card);
             });
-            equipmentInput.value = JSON.stringify(equipmentItems);
+            updateEquipmentInput();
             addEquipmentButton.disabled = equipmentItems.length >= 6 || catalog.length === 0;
         }
+
+        function updateEquipmentInput() {
+            equipmentInput.value = JSON.stringify(equipmentItems);
+            const allItems = equipmentItems.flatMap(item => [
+                item,
+                ...item.ferramentas,
+            ]);
+            checkAllEquipment.checked = allItems.length > 0
+                && allItems.every(item => item.levado);
+            checkAllEquipment.indeterminate = allItems.some(item => item.levado)
+                && !checkAllEquipment.checked;
+        }
+
+        checkAllEquipment.addEventListener("change", () => {
+            equipmentItems.forEach(item => {
+                item.levado = checkAllEquipment.checked;
+                item.ferramentas.forEach(tool => {
+                    tool.levado = checkAllEquipment.checked;
+                });
+            });
+            renderEquipmentItems();
+        });
 
         function updateEquipmentChoices() {
             const category = categorySelect.value;
@@ -232,6 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 categoria: selected.categoria,
                 equipamento: selected.equipamento,
                 tipo: selected.tipo,
+                levado: false,
                 ferramentas: [...new Set(toolNames)].map(nome => ({
                     nome,
                     levado: false,
@@ -245,6 +349,32 @@ document.addEventListener("DOMContentLoaded", () => {
             if (event.target === equipmentDialog) closeEquipmentDialog();
         });
         renderEquipmentItems();
+    }
+
+    const serviceEquipmentForm = document.querySelector("[data-service-equipment-form]");
+    if (serviceEquipmentForm) {
+        const checkboxes = [
+            ...document.querySelectorAll("[data-equipment-confirmation-item]"),
+        ];
+        const checkAll = document.querySelector("#check-all-service-equipment");
+
+        function updateCheckAllState() {
+            checkAll.checked = checkboxes.length > 0
+                && checkboxes.every(checkbox => checkbox.checked);
+            checkAll.indeterminate = checkboxes.some(checkbox => checkbox.checked)
+                && !checkAll.checked;
+        }
+
+        checkAll.addEventListener("change", () => {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = checkAll.checked;
+            });
+            checkAll.indeterminate = false;
+        });
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener("change", updateCheckAllState);
+        });
+        updateCheckAllState();
     }
 
     const collaboratorList = document.querySelector("#collaborator-list");
