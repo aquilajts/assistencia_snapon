@@ -25,7 +25,11 @@
 <section class="panel">
     <div class="panel-head">
         <div><p class="eyebrow">PENDENTES</p><h2>Por região</h2></div>
-        <a class="button ghost" href="{{ url_for('gerenciar_equipamentos') }}">Categorias e equipamentos</a>
+        <div class="dashboard-tools">
+            <a class="button ghost" href="{{ url_for('gerenciar_equipamentos') }}">Categorias e equipamentos</a>
+            <a class="button ghost" href="{{ url_for('lista_compras') }}">Lista de compras</a>
+            <a class="button ghost" href="{{ url_for('motorista') }}">Motorista</a>
+        </div>
     </div>
     <div class="region-list">
         <div class="region-row region-header">
