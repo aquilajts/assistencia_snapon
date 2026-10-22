@@ -13,6 +13,9 @@ MVP baseado na especificação funcional enviada.
 - A agenda mostra todos os serviços por padrão, exceto os "Finalizado Bling"; esse status fica disponível ao selecioná-lo no filtro
 - Tela de detalhes
 - Alteração de status
+- Lista de compras com observação opcional por item e histórico dos registros
+- Registro de motorista por dia, veículo e colaborador, com histórico e lembrete de segurança
+- Cada equipamento e ferramenta possui confirmação individual e há uma opção para marcar todos. O serviço só pode ser agendado quando todos os itens estiverem confirmados; a confirmação fica registrada no histórico. Como o sistema não possui login, o histórico não identifica nominalmente quem confirmou.
 - Registro de observações e histórico
 - Conclusão do serviço
 - O tipo "Rascunho" é salvo automaticamente com o status "Rascunho"
@@ -89,6 +92,18 @@ equipamento ou removê-las individualmente.
 Para salvar os colaboradores que atenderão cada serviço, execute
 [`20261014130000_add_service_collaborators.sql`](./supabase/migrations/20261014130000_add_service_collaborators.sql)
 no SQL Editor. A coluna aceita até quatro nomes por serviço.
+
+Para registrar também a confirmação individual de cada equipamento, execute
+[`20261022101500_add_equipment_confirmation.sql`](./supabase/migrations/20261022101500_add_equipment_confirmation.sql)
+no SQL Editor do Supabase antes de atualizar a aplicação.
+
+Para habilitar a lista de compras e o histórico de motoristas, execute
+[`20261022113000_add_purchase_list_and_driver_logs.sql`](./supabase/migrations/20261022113000_add_purchase_list_and_driver_logs.sql)
+no SQL Editor do Supabase antes de usar as novas telas.
+
+Para permitir a exclusão dos itens comprados da lista, execute também
+[`20261022114500_allow_purchase_list_delete.sql`](./supabase/migrations/20261022114500_allow_purchase_list_delete.sql)
+no SQL Editor do Supabase.
 
 ## Próximas evoluções
 
