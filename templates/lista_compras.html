@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Lista de compras — Assistência Técnica{% endblock %}
+{% block content %}
+<div class="page-head equipment-admin-head">
+    <div>
+        <p class="eyebrow">ORGANIZAÇÃO</p>
+        <h1>Lista de compras</h1>
+        <p class="muted">Registre o que precisa comprar e uma observação, se necessário.</p>
+    </div>
+    <a class="button ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+</div>
+
+{% if erro %}<div class="alert" role="alert">{{ erro }}</div>{% endif %}
+{% if mensagem %}<div class="notice" role="status">{{ mensagem }}</div>{% endif %}
+
+<section class="panel">
+    <h2>Novo item</h2>
+    <form method="post" class="catalog-form purchase-form">
+        <label for="purchase-item">O que precisa comprar?</label>
+        <input id="purchase-item" name="item" maxlength="160" value="{{ item }}" required>
+        <label for="purchase-note">Observação <span class="muted">(opcional)</span></label>
+        <textarea id="purchase-note" name="observacao" rows="3" maxlength="500">{{ observacao }}</textarea>
+        <button class="button primary" type="submit">Salvar item</button>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div><p class="eyebrow">REGISTROS</p><h2>Itens para comprar</h2></div>
+        <span class="muted small">{{ compras|length }} itens</span>
+    </div>
+    <div class="purchase-list">
+        {% for compra in compras %}
+        <article class="purchase-item">
+            <div>
+                <h3>{{ compra['item'] }}</h3>
+                {% if compra.get('observacao') %}<p>{{ compra['observacao'] }}</p>{% endif %}
+            </div>
+            <div class="purchase-item-actions">
+                <time>{{ compra['data_formatada'] }}</time>
+                <form method="post"
+                      action="{{ url_for('excluir_item_compra', compra_id=compra['id']) }}"
+                      onsubmit="return confirm('Confirma que este item foi comprado e deseja removê-lo da lista?');">
+                    <button class="purchase-delete-button" type="submit" aria-label="Excluir {{ compra['item'] }}" title="Marcar como comprado e excluir">×</button>
+                </form>
+            </div>
+        </article>
+        {% else %}
+        <p class="muted">Nenhum item registrado ainda.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
