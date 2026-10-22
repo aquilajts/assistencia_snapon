@@ -1,29 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Cadastrar serviço{% endblock %}
 {% block content %}
-<form method="post" class="form-card">
+<form method="post" class="form-card" data-registration-form>
     {% if erro %}<div class="alert">{{ erro }}</div>{% endif %}
 
     <div class="form-section">
         <label>Tipo de serviço</label>
         <div class="choice-grid">
             <label class="choice">
-                <input type="radio" name="tipo" value="Montagem" checked>
+                <input type="radio" name="tipo" value="Montagem" {% if tipo_selecionado == 'Montagem' %}checked{% endif %}>
                 <span><b>Montagem</b></span>
             </label>
         
             <label class="choice">
-                <input type="radio" name="tipo" value="Assistência Técnica">
+                <input type="radio" name="tipo" value="Assistência Técnica" {% if tipo_selecionado == 'Assistência Técnica' %}checked{% endif %}>
                 <span><b>Assistência Técnica</b></span>
             </label>
         
             <label class="choice">
-                <input type="radio" name="tipo" value="Garantia">
+                <input type="radio" name="tipo" value="Garantia" {% if tipo_selecionado == 'Garantia' %}checked{% endif %}>
                 <span><b>Garantia</b></span>
             </label>
 
             <label class="choice">
-                <input type="radio" name="tipo" value="Rascunho">
+                <input type="radio" name="tipo" value="Rascunho" {% if tipo_selecionado == 'Rascunho' %}checked{% endif %}>
                 <span><b>Rascunho</b></span>
             </label>
         </div>
@@ -34,7 +34,11 @@
             <label for="status">Status do serviço</label>
             <select id="status" name="status">
                 {% for status in status_opcoes %}
-                <option value="{{ status }}" {% if status == status_selecionado %}selected{% endif %}>{{ status }}</option>
+                <option value="{{ status }}"
+                        {% if status == status_selecionado %}selected{% endif %}
+                        {% if (tipo_selecionado == 'Rascunho') != (status == 'Rascunho') %}hidden disabled{% endif %}>
+                    {{ status }}
+                </option>
                 {% endfor %}
             </select>
         </div>
@@ -81,6 +85,7 @@
     </div>
 
     {% include "equipamentos_form.html" %}
+    <div id="equipment-confirmation-error" class="alert hidden" role="alert"></div>
 
     {% include "colaboradores_form.html" %}
 
