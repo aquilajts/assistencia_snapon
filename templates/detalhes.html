@@ -8,21 +8,27 @@
         <form method="post"
               id="statusForm"
               action="{{ url_for('alterar_status', servico_id=servico['id']) }}"
-              class="status-select-form">
+              class="status-select-form"
+              data-service-equipment-form>
             <select name="status" aria-label="Status do serviço">
-                {% for st in [
-                    "Rascunho",
-                    "A confirmar",
-                    "Agendado",
-                    "Finalizado Bling",
-                    "Concluído",
-                    "Problema / Retorno necessário"
-                ] %}
+                {% set status_detalhes = (
+                    ["Rascunho"]
+                    if servico['tipo'] == 'Rascunho'
+                    else [
+                        "A confirmar",
+                        "Agendado",
+                        "Finalizado Bling",
+                        "Concluído",
+                        "Problema / Retorno necessário"
+                    ]
+                ) %}
+                {% for st in status_detalhes %}
                 <option {% if st == servico['status'] %}selected{% endif %}>
                     {{ st }}
                 </option>
                 {% endfor %}
             </select>
+            <div id="equipment-confirmation-error" class="alert hidden" role="alert"></div>
         </form>
     </div>
 
@@ -36,6 +42,7 @@
             <button class="button primary compact-button" type="submit" form="statusForm">Salvar</button>
         </div>
     </div>
+    {% if erro %}<div class="alert" role="alert">{{ erro }}</div>{% endif %}
 </div>
 
 <div class="detail-grid">
@@ -106,6 +113,58 @@
     </section>
 
 </div>
+
+<section class="panel service-equipment-checklist">
+    <div class="equipment-section-head">
+        <div>
+            <h2>Equipamentos e ferramentas</h2>
+            <p class="muted small">Confirme cada item separado. Todos precisam estar marcados para agendar.</p>
+        </div>
+        <label class="equipment-bulk-check">
+            <input type="checkbox" id="check-all-service-equipment" form="statusForm">
+            Marcar todos
+        </label>
+    </div>
+    <div class="equipment-list">
+        {% for equipamento in equipamentos %}
+        <article class="equipment-card">
+            <div class="equipment-card-head">
+                <div class="service-equipment-name">
+                    <label class="equipment-confirmation-item">
+                        <input type="checkbox"
+                               name="equipamento_confirmado"
+                               value="{{ equipamento['id'] }}"
+                               form="statusForm"
+                               data-equipment-confirmation-item
+                               {% if equipamento.get('levado') %}checked{% endif %}>
+                        <span class="equipment-name">{{ equipamento['equipamento'] }}</span>
+                    </label>
+                    <p class="muted small">{{ equipamento['categoria'] }} · {{ equipamento['tipo'] }}</p>
+                </div>
+            </div>
+            {% if equipamento['ferramentas'] %}
+            <div class="equipment-tools">
+                {% for ferramenta in equipamento['ferramentas'] %}
+                <label>
+                    <input type="checkbox"
+                           name="ferramenta_confirmada"
+                           value="{{ ferramenta['id'] }}"
+                           form="statusForm"
+                           data-equipment-confirmation-item
+                           {% if ferramenta.get('levado') %}checked{% endif %}>
+                    <span>{{ ferramenta['nome'] }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted small">Nenhuma ferramenta cadastrada para este equipamento.</p>
+            {% endif %}
+        </article>
+        {% else %}
+        <p class="muted small">Nenhum equipamento foi informado para este serviço.</p>
+        {% endfor %}
+    </div>
+</section>
 
 <section class="panel">
     <h2>Observações do atendimento</h2>
