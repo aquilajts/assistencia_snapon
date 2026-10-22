@@ -3,13 +3,9 @@ import json
 import os
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
-
-#atualizado abaixo
-from zoneinfo import ZoneInfo 
+from zoneinfo import ZoneInfo
 
 FUSO = ZoneInfo("America/Sao_Paulo") 
-
-#atualizado acima
 
 app = Flask(__name__)
 @app.route("/health") 
@@ -131,6 +127,7 @@ def ler_equipamentos_form(catalogo):
             "categoria": item_catalogo["categoria"],
             "equipamento": item_catalogo["equipamento"],
             "tipo": item_catalogo["tipo"],
+            "levado": enviado.get("levado") is True,
             "ferramentas": ferramentas,
         })
 
@@ -283,6 +280,126 @@ def gerenciar_equipamentos():
     return render_catalog("Ação inválida.")
 
 
+@app.route("/lista-compras", methods=["GET", "POST"])
+def lista_compras():
+    erro = None
+    item = ""
+    observacao = ""
+
+    if request.method == "POST":
+        item = request.form.get("item", "").strip()
+        observacao = request.form.get("observacao", "").strip()
+        if not item or len(item) > 160:
+            erro = "Informe o que precisa comprar (até 160 caracteres)."
+        elif len(observacao) > 500:
+            erro = "A observação pode ter até 500 caracteres."
+        else:
+            supabase.table("3_ata_lista_compras").insert({
+                "item": item,
+                "observacao": observacao or None,
+                "criado_em": datetime.now().isoformat(timespec="seconds"),
+            }).execute()
+            return redirect(url_for(
+                "lista_compras",
+                mensagem="Item adicionado à lista.",
+            ))
+
+    resposta = supabase.table("3_ata_lista_compras") \
+        .select("*") \
+        .order("criado_em", desc=True) \
+        .execute()
+    compras = resposta.data or []
+    for compra in compras:
+        compra["data_formatada"] = datetime.fromisoformat(
+            str(compra["criado_em"]).replace("Z", "+00:00")
+        ).astimezone(FUSO).strftime("%d/%m/%Y - %H:%M")
+
+    return render_template(
+        "lista_compras.html",
+        compras=compras,
+        erro=erro,
+        mensagem=request.args.get("mensagem"),
+        item=item,
+        observacao=observacao,
+    )
+
+
+@app.route("/lista-compras/<int:compra_id>/excluir", methods=["POST"])
+def excluir_item_compra(compra_id):
+    resposta = supabase.table("3_ata_lista_compras") \
+        .delete() \
+        .eq("id", compra_id) \
+        .select("id") \
+        .execute()
+    if not resposta.data:
+        return redirect(url_for(
+            "lista_compras",
+            mensagem="O item já foi removido ou não existe.",
+        ))
+
+    return redirect(url_for(
+        "lista_compras",
+        mensagem="Item removido da lista de compras.",
+    ))
+
+
+@app.route("/motorista", methods=["GET", "POST"])
+def motorista():
+    erro = None
+    dados = {
+        "data": request.form.get("data", hoje_local().isoformat()),
+        "veiculo": request.form.get("veiculo", ""),
+        "colaborador": request.form.get("colaborador", "").strip(),
+        "observacao": request.form.get("observacao", "").strip(),
+    }
+
+    if request.method == "POST":
+        try:
+            date.fromisoformat(dados["data"])
+        except ValueError:
+            erro = "Selecione uma data válida."
+        if not erro and dados["veiculo"] not in {"Fiorino", "Oroch", "Outro"}:
+            erro = "Selecione um veículo válido."
+        if not erro and (
+            not dados["colaborador"] or len(dados["colaborador"]) > 120
+        ):
+            erro = "Informe o nome do colaborador (até 120 caracteres)."
+        if not erro and len(dados["observacao"]) > 500:
+            erro = "A observação pode ter até 500 caracteres."
+
+        if not erro:
+            supabase.table("3_ata_motoristas").insert({
+                "data": dados["data"],
+                "veiculo": dados["veiculo"],
+                "colaborador": dados["colaborador"],
+                "observacao": dados["observacao"] or None,
+                "criado_em": datetime.now().isoformat(timespec="seconds"),
+            }).execute()
+            return redirect(url_for(
+                "motorista",
+                mensagem="Registro de motorista salvo.",
+            ))
+
+    resposta = supabase.table("3_ata_motoristas") \
+        .select("*") \
+        .order("data", desc=True) \
+        .order("criado_em", desc=True) \
+        .execute()
+    registros = resposta.data or []
+    for registro in registros:
+        registro["data_formatada"] = date.fromisoformat(
+            str(registro["data"])[:10]
+        ).strftime("%d/%m/%Y")
+
+    return render_template(
+        "motorista.html",
+        registros=registros,
+        erro=erro,
+        mensagem=request.args.get("mensagem"),
+        dados=dados,
+    )
+
+
 def carregar_equipamentos_servico(servico_id):
     response = supabase.table("3_ata_servico_equipamentos") \
         .select("*") \
@@ -304,6 +421,7 @@ def carregar_equipamentos_servico(servico_id):
         ferramentas_por_equipamento.setdefault(
             ferramenta["servico_equipamento_id"], []
         ).append({
+            "id": ferramenta["id"],
             "nome": ferramenta["ferramenta"],
             "levado": ferramenta["levado"],
         })
@@ -329,6 +447,7 @@ def salvar_equipamentos_servico(servico_id, equipamentos):
             "categoria": equipamento["categoria"],
             "equipamento": equipamento["equipamento"],
             "tipo": equipamento["tipo"],
+            "levado": equipamento["levado"],
             "ordem": ordem,
         }).select("id").execute()
         servico_equipamento_id = response.data[0]["id"]
@@ -348,7 +467,61 @@ def salvar_equipamentos_servico(servico_id, equipamentos):
                 .insert(ferramentas) \
                 .execute()
 
-#atualizado abaixo
+
+def salvar_confirmacoes_equipamentos_servico(
+    servico_id,
+    equipamentos,
+    equipamentos_confirmados,
+    ferramentas_confirmadas,
+):
+    equipamentos_confirmados = {str(item) for item in equipamentos_confirmados}
+    ferramentas_confirmadas = {str(item) for item in ferramentas_confirmadas}
+
+    equipamentos_marcados = [
+        str(item["id"]) for item in equipamentos
+        if str(item["id"]) in equipamentos_confirmados
+    ]
+    equipamentos_desmarcados = [
+        str(item["id"]) for item in equipamentos
+        if str(item["id"]) not in equipamentos_confirmados
+    ]
+    ferramentas = [
+        ferramenta
+        for equipamento in equipamentos
+        for ferramenta in equipamento["ferramentas"]
+    ]
+    ferramentas_marcadas = [
+        str(item["id"]) for item in ferramentas
+        if str(item["id"]) in ferramentas_confirmadas
+    ]
+    ferramentas_desmarcadas = [
+        str(item["id"]) for item in ferramentas
+        if str(item["id"]) not in ferramentas_confirmadas
+    ]
+
+    if equipamentos_marcados:
+        supabase.table("3_ata_servico_equipamentos") \
+            .update({"levado": True}) \
+            .in_("id", equipamentos_marcados) \
+            .eq("servico_id", servico_id) \
+            .execute()
+    if equipamentos_desmarcados:
+        supabase.table("3_ata_servico_equipamentos") \
+            .update({"levado": False}) \
+            .in_("id", equipamentos_desmarcados) \
+            .eq("servico_id", servico_id) \
+            .execute()
+    if ferramentas_marcadas:
+        supabase.table("3_ata_servico_ferramentas") \
+            .update({"levado": True}) \
+            .in_("id", ferramentas_marcadas) \
+            .execute()
+    if ferramentas_desmarcadas:
+        supabase.table("3_ata_servico_ferramentas") \
+            .update({"levado": False}) \
+            .in_("id", ferramentas_desmarcadas) \
+            .execute()
+
 
 def hoje_local():
     return datetime.now(FUSO).date()
@@ -373,10 +546,6 @@ def carregar_resumo_servicos():
         if len(bloco) < tamanho:
             return linhas
         inicio += tamanho
-
-#atualizado acima
-
-#alterado abaixo
 
 @app.route("/")
 def index():
@@ -448,8 +617,6 @@ def index():
         regioes=regioes,
     )
 
-#alterado acima
-
 @app.route("/servicos")
 def servicos():
     response = supabase.table("3_ata_servicos") \
@@ -483,6 +650,7 @@ def novo_servico():
         cidade="",
         colaboradores=None,
         status_selecionado="A confirmar",
+        tipo_selecionado="Montagem",
     ):
         return render_template(
             "novo_servico.html",
@@ -495,6 +663,7 @@ def novo_servico():
             colaboradores=(colaboradores or [])[:4],
             status_selecionado=status_selecionado,
             status_opcoes=STATUS_SERVICO,
+            tipo_selecionado=tipo_selecionado,
         )
 
     if request.method == "POST":
@@ -502,6 +671,8 @@ def novo_servico():
         cliente = request.form.get("cliente", "").strip()
         cidade = request.form.get("cidade", "").strip()
         status = request.form.get("status", "A confirmar")
+        if tipo == "Rascunho":
+            status = "Rascunho"
         try:
             colaboradores = ler_colaboradores_form()
             erro_colaboradores = None
@@ -522,22 +693,36 @@ def novo_servico():
         if tipo not in ["Montagem", "Assistência Técnica", "Garantia", "Rascunho"]:
             return render_form(
                 "Tipo de serviço inválido.", equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
+            )
+        if tipo != "Rascunho" and status == "Rascunho":
+            return render_form(
+                "O status Rascunho só pode ser usado quando o tipo do serviço também for Rascunho.",
+                equipamentos, cidade, colaboradores, "A confirmar", tipo,
             )
         if status not in STATUS_SERVICO:
             return render_form(
                 "Status de serviço inválido.", equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
+            )
+        if status == "Agendado" and any(
+            not equipamento["levado"]
+            or any(not ferramenta["levado"] for ferramenta in equipamento["ferramentas"])
+            for equipamento in equipamentos
+        ):
+            return render_form(
+                "Confirme cada equipamento e ferramenta antes de agendar o serviço.",
+                equipamentos, cidade, colaboradores, status, tipo,
             )
         if erro_colaboradores:
             return render_form(
                 erro_colaboradores, equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
             )
         if erro_equipamentos:
             return render_form(
                 erro_equipamentos, equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
             )
 
         telefone = request.form.get("telefone", "").strip()
@@ -548,13 +733,13 @@ def novo_servico():
         if not cliente:
             return render_form(
                 "Informe o cliente/empresa.", equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
             )
         regiao = regioes_por_municipio.get(cidade)
         if not regiao:
             return render_form(
                 "Selecione uma cidade válida da lista.", equipamentos, cidade,
-                colaboradores, status,
+                colaboradores, status, tipo,
             )
 
         cur = supabase.table("3_ata_servicos").insert({
@@ -578,6 +763,16 @@ def novo_servico():
             supabase.table("3_ata_historico").insert({
                 "servico_id": servico_id,
                 "texto": "Observação inicial: " + observacoes,
+                "criado_em": datetime.now().isoformat(timespec="seconds")
+            }).execute()
+        if status == "Agendado":
+            supabase.table("3_ata_historico").insert({
+                "servico_id": servico_id,
+                "texto": (
+                    "Serviço criado como Agendado; todos os equipamentos e "
+                    "ferramentas foram confirmados como separados "
+                    "(responsável não identificado)."
+                ),
                 "criado_em": datetime.now().isoformat(timespec="seconds")
             }).execute()
         return redirect(url_for("detalhes", servico_id=servico_id))
@@ -715,6 +910,8 @@ def detalhes(servico_id):
         "detalhes.html",
         servico=servico,
         historico=historico,
+        equipamentos=carregar_equipamentos_servico(servico_id),
+        erro=request.args.get("erro"),
         data_prevista_formatada=data_prevista_formatada,
         criado_em_formatado=criado_em_formatado,
         telefone_whatsapp=telefone_whatsapp,
@@ -732,11 +929,8 @@ def alterar_status(servico_id):
         "Concluído",
         "Problema / Retorno necessário",
     ]
-    if status not in permitidos:
-        return redirect(url_for("detalhes", servico_id=servico_id))
-
     servico_response = supabase.table("3_ata_servicos") \
-        .select("tipo") \
+        .select("tipo, status") \
         .eq("id", servico_id) \
         .single() \
         .execute()
@@ -744,27 +938,73 @@ def alterar_status(servico_id):
     if not servico:
         return "Serviço não encontrado", 404
 
+    if status not in permitidos:
+        return redirect(url_for(
+            "detalhes", servico_id=servico_id,
+            erro="Status de serviço inválido.",
+        ))
+    if servico["tipo"] == "Rascunho":
+        status = "Rascunho"
+    elif status == "Rascunho":
+        return redirect(url_for(
+            "detalhes", servico_id=servico_id,
+            erro="O status Rascunho só pode ser usado quando o tipo do serviço também for Rascunho.",
+        ))
+    equipamentos = carregar_equipamentos_servico(servico_id)
+    equipamentos_confirmados = request.form.getlist("equipamento_confirmado")
+    ferramentas_confirmadas = request.form.getlist("ferramenta_confirmada")
+    todos_confirmados = (
+        all(str(item["id"]) in equipamentos_confirmados for item in equipamentos)
+        and all(
+            str(ferramenta["id"]) in ferramentas_confirmadas
+            for item in equipamentos
+            for ferramenta in item["ferramentas"]
+        )
+    )
+    if status == "Agendado" and not todos_confirmados:
+        if servico.get("status") != "Agendado":
+            salvar_confirmacoes_equipamentos_servico(
+                servico_id,
+                equipamentos,
+                equipamentos_confirmados,
+                ferramentas_confirmadas,
+            )
+        return redirect(url_for(
+            "detalhes", servico_id=servico_id,
+            erro="Marque todos os equipamentos e ferramentas antes de agendar.",
+        ))
+
+    salvar_confirmacoes_equipamentos_servico(
+        servico_id,
+        equipamentos,
+        equipamentos_confirmados,
+        ferramentas_confirmadas,
+    )
+
     dados = {
         "status": status,
         "foto_servico": request.form.get("foto_servico") == "on",
         "assinatura_cliente": request.form.get("assinatura_cliente") == "on",
         "epi_utilizado": request.form.get("epi_utilizado") == "on",
     }
-    if status == "Rascunho":
-        dados["tipo"] = "Rascunho"
-    elif servico["tipo"] == "Rascunho":
-        status = "Rascunho"
-        dados["status"] = status
 
     finalizados = ["Concluído", "Finalizado Bling"]
     data_conclusao = datetime.now().isoformat(timespec="seconds") if status in finalizados else None
     dados["data_conclusao"] = data_conclusao
     
     supabase.table("3_ata_servicos").update(dados).eq("id", servico_id).execute()
-    if status in finalizados:
+    if status in finalizados or (
+        status == "Agendado" and servico.get("status") != "Agendado"
+    ):
+        texto_historico = (
+            "Serviço agendado; todos os equipamentos e ferramentas foram "
+            "confirmados como separados (responsável não identificado)."
+            if status == "Agendado"
+            else f"Serviço marcado como {status.lower()}."
+        )
         supabase.table("3_ata_historico").insert({
             "servico_id": servico_id,
-            "texto": f"Serviço marcado como {status.lower()}.",
+            "texto": texto_historico,
             "criado_em": datetime.now().isoformat(timespec="seconds")
         }).execute()
     return redirect(url_for("detalhes", servico_id=servico_id))
